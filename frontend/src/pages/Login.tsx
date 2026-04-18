@@ -1,14 +1,30 @@
 import { useState, useEffect, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
-import { getSetupStatus, initSetup, confirmSetup, login, verify2FA, isAuthenticated } from '../api/client';
+import {
+  getSetupStatus,
+  initSetup,
+  confirmSetup,
+  login,
+  verify2FA,
+  migrateLegacy,
+  isAuthenticated,
+} from '../api/client';
 import Logo from '../components/Logo';
 
-type Step = 'loading' | 'setup-password' | 'setup-totp' | 'setup-confirm' | 'login-password' | 'login-totp';
+type Step =
+  | 'loading'
+  | 'migrate'
+  | 'setup-password'
+  | 'setup-totp'
+  | 'setup-confirm'
+  | 'login-password'
+  | 'login-totp';
 
 export default function Login() {
   const navigate = useNavigate();
   const [step, setStep] = useState<Step>('loading');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [totpCode, setTotpCode] = useState('');
@@ -23,8 +39,12 @@ export default function Login() {
       return;
     }
     getSetupStatus()
-      .then(({ initialized }) => {
-        setStep(initialized ? 'login-password' : 'setup-password');
+      .then(({ initialized, migrationPending }) => {
+        if (migrationPending) {
+          setStep('migrate');
+        } else {
+          setStep(initialized ? 'login-password' : 'setup-password');
+        }
       })
       .catch(() => {
         setError('Could not connect to the server. Please check that the Worker is deployed and the API URL is configured correctly.');
@@ -32,9 +52,44 @@ export default function Login() {
       });
   }, [navigate]);
 
+  // ── Migration: claim existing data under a new username ──
+
+  async function handleMigrate(e: FormEvent) {
+    e.preventDefault();
+    setError('');
+    const trimmedUsername = username.trim().toLowerCase();
+    if (!/^[a-z0-9_-]{3,32}$/.test(trimmedUsername)) {
+      setError('Username must be 3–32 characters: lowercase letters, digits, underscore, or dash.');
+      return;
+    }
+    if (!password) {
+      setError('Please enter your existing password.');
+      return;
+    }
+    setLoading(true);
+    try {
+      await migrateLegacy(trimmedUsername, password);
+      // Migration done — now log in normally
+      setUsername(trimmedUsername);
+      setPassword('');
+      setStep('login-password');
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // ── Setup Step 1: username + password ──
+
   async function handleSetupPassword(e: FormEvent) {
     e.preventDefault();
     setError('');
+    const trimmedUsername = username.trim().toLowerCase();
+    if (!/^[a-z0-9_-]{3,32}$/.test(trimmedUsername)) {
+      setError('Username must be 3–32 characters: lowercase letters, digits, underscore, or dash.');
+      return;
+    }
     if (password.length < 8) {
       setError('Your password must be at least 8 characters long.');
       return;
@@ -45,7 +100,8 @@ export default function Login() {
     }
     setLoading(true);
     try {
-      const { totpSecret: secret } = await initSetup(password);
+      const { totpSecret: secret } = await initSetup(trimmedUsername, password);
+      setUsername(trimmedUsername);
       setTotpSecret(secret);
       setStep('setup-totp');
     } catch (err) {
@@ -54,6 +110,8 @@ export default function Login() {
       setLoading(false);
     }
   }
+
+  // ── Setup Step 3: confirm TOTP ──
 
   async function handleSetupConfirm(e: FormEvent) {
     e.preventDefault();
@@ -64,31 +122,35 @@ export default function Login() {
     }
     setLoading(true);
     try {
-      await confirmSetup(totpCode);
+      await confirmSetup(username, totpCode);
       setStep('login-password');
       setPassword('');
       setTotpCode('');
-    } catch (err) {
+    } catch {
       setError('The code you entered is incorrect. Make sure your authenticator app is synced and try again.');
     } finally {
       setLoading(false);
     }
   }
 
+  // ── Login Step 1: username + password ──
+
   async function handleLogin(e: FormEvent) {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
-      const { preAuthToken: token } = await login(password);
+      const { preAuthToken: token } = await login(username, password);
       setPreAuthToken(token);
       setStep('login-totp');
-    } catch (err) {
-      setError('Incorrect password. Please try again.');
+    } catch {
+      setError('Incorrect username or password. Please try again.');
     } finally {
       setLoading(false);
     }
   }
+
+  // ── Login Step 2: 2FA ──
 
   async function handleVerify2FA(e: FormEvent) {
     e.preventDefault();
@@ -101,7 +163,7 @@ export default function Login() {
     try {
       await verify2FA(preAuthToken, totpCode);
       navigate('/dashboard');
-    } catch (err) {
+    } catch {
       setError('The verification code is incorrect or has expired. Please check your authenticator app and try again.');
     } finally {
       setLoading(false);
@@ -109,7 +171,7 @@ export default function Login() {
   }
 
   const otpauthUrl = totpSecret
-    ? `otpauth://totp/Lotus:Lotus?secret=${totpSecret}&issuer=Lotus&algorithm=SHA1&digits=6&period=30`
+    ? `otpauth://totp/Lotus:${encodeURIComponent(username || 'Lotus')}?secret=${totpSecret}&issuer=Lotus&algorithm=SHA1&digits=6&period=30`
     : '';
 
   if (step === 'loading') {
@@ -134,11 +196,22 @@ export default function Login() {
             Budget. Bloom. Balance
           </p>
           <p className="subtitle" style={{ marginTop: 10 }}>
-            {step === 'setup-password' || step === 'setup-totp' || step === 'setup-confirm'
+            {step === 'migrate'
+              ? 'Claim your existing data'
+              : step === 'setup-password' || step === 'setup-totp' || step === 'setup-confirm'
               ? 'First-time setup'
               : 'Sign in to your account'}
           </p>
         </div>
+
+        {/* Welcome message on 2FA step */}
+        {step === 'login-totp' && username && (
+          <div style={{ marginTop: 48, marginBottom: 24, textAlign: 'center' }}>
+            <p style={{ color: 'var(--text-primary)', fontSize: '1.125rem', margin: 0 }}>
+              Welcome, <strong>{username}</strong>
+            </p>
+          </div>
+        )}
 
         {error && (
           <div className="alert alert-danger" style={{ marginBottom: 20 }}>
@@ -151,12 +224,68 @@ export default function Login() {
           </div>
         )}
 
-        {/* Setup Step 1: Password */}
+        {/* Migration: claim existing single-user data */}
+        {step === 'migrate' && (
+          <form onSubmit={handleMigrate} className="login-form">
+            <p style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.875rem', marginBottom: 8 }}>
+              A previous single-user setup was detected. Choose a username and enter your existing password to migrate your data to the new format.
+            </p>
+            <div className="form-group">
+              <label className="form-label">Choose a username</label>
+              <input
+                type="text"
+                className="input"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="e.g. alice"
+                autoComplete="username"
+                autoFocus
+                required
+              />
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                3–32 characters: lowercase letters, digits, underscore, or dash.
+              </p>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Existing password</label>
+              <input
+                type="password"
+                className="input"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Your current password"
+                autoComplete="current-password"
+                required
+              />
+            </div>
+            <button type="submit" className="btn btn-primary btn-lg w-full" disabled={loading}>
+              {loading ? <span className="spinner" /> : 'Claim & Migrate'}
+            </button>
+          </form>
+        )}
+
+        {/* Setup Step 1: username + password */}
         {step === 'setup-password' && (
           <form onSubmit={handleSetupPassword} className="login-form">
             <p style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.875rem', marginBottom: 8 }}>
-              Create a password and set up two-factor authentication to protect your financial data.
+              Create a username, password, and set up two-factor authentication to protect your financial data.
             </p>
+            <div className="form-group">
+              <label className="form-label">Username</label>
+              <input
+                type="text"
+                className="input"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="e.g. alice"
+                autoComplete="username"
+                autoFocus
+                required
+              />
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                3–32 characters: lowercase letters, digits, underscore, or dash.
+              </p>
+            </div>
             <div className="form-group">
               <label className="form-label">Password</label>
               <input
@@ -256,9 +385,22 @@ export default function Login() {
           </form>
         )}
 
-        {/* Login Step 1: Password */}
+        {/* Login Step 1: username + password */}
         {step === 'login-password' && (
           <form onSubmit={handleLogin} className="login-form">
+            <div className="form-group">
+              <label className="form-label">Username</label>
+              <input
+                type="text"
+                className="input"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Your username"
+                autoComplete="username"
+                autoFocus
+                required
+              />
+            </div>
             <div className="form-group">
               <label className="form-label">Password</label>
               <input
@@ -268,7 +410,6 @@ export default function Login() {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter your password"
                 autoComplete="current-password"
-                autoFocus
                 required
               />
             </div>

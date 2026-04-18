@@ -14,6 +14,10 @@ function clearToken(): void {
   localStorage.removeItem('ft_token');
 }
 
+export function getCurrentUsername(): string | null {
+  return localStorage.getItem('ft_username');
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = {
@@ -26,6 +30,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   if (res.status === 401) {
     clearToken();
+    localStorage.removeItem('ft_username');
     window.location.hash = '#/login';
     throw new Error('Session expired. Please log in again.');
   }
@@ -39,37 +44,38 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
-export async function getSetupStatus(): Promise<{ initialized: boolean }> {
+export async function getSetupStatus(): Promise<{ initialized: boolean; migrationPending: boolean }> {
   return request('/api/setup/status');
 }
 
-export async function initSetup(password: string): Promise<{ totpSecret: string }> {
+export async function initSetup(username: string, password: string): Promise<{ totpSecret: string; username: string }> {
   return request('/api/setup/init', {
     method: 'POST',
-    body: JSON.stringify({ password }),
+    body: JSON.stringify({ username, password }),
   });
 }
 
-export async function confirmSetup(totpCode: string): Promise<void> {
+export async function confirmSetup(username: string, totpCode: string): Promise<void> {
   return request('/api/setup/confirm', {
     method: 'POST',
-    body: JSON.stringify({ totpCode }),
+    body: JSON.stringify({ username, totpCode }),
   });
 }
 
-export async function login(password: string): Promise<{ preAuthToken: string }> {
+export async function login(username: string, password: string): Promise<{ preAuthToken: string }> {
   return request('/api/auth/login', {
     method: 'POST',
-    body: JSON.stringify({ password }),
+    body: JSON.stringify({ username, password }),
   });
 }
 
-export async function verify2FA(preAuthToken: string, totpCode: string): Promise<{ token: string }> {
-  const result: { token: string } = await request('/api/auth/verify-2fa', {
+export async function verify2FA(preAuthToken: string, totpCode: string): Promise<{ token: string; username: string }> {
+  const result = await request<{ token: string; username: string }>('/api/auth/verify-2fa', {
     method: 'POST',
     body: JSON.stringify({ preAuthToken, totpCode }),
   });
   setToken(result.token);
+  localStorage.setItem('ft_username', result.username);
   return result;
 }
 
@@ -78,7 +84,15 @@ export async function logout(): Promise<void> {
     await request('/api/auth/logout', { method: 'POST' });
   } finally {
     clearToken();
+    localStorage.removeItem('ft_username');
   }
+}
+
+export async function migrateLegacy(username: string, password: string): Promise<{ ok: boolean; moved: number }> {
+  return request('/api/setup/migrate', {
+    method: 'POST',
+    body: JSON.stringify({ username, password }),
+  });
 }
 
 export function isAuthenticated(): boolean {

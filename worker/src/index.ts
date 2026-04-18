@@ -17,6 +17,7 @@ import {
   generateTOTPSecret,
   verifyTOTP,
 } from './crypto';
+import { migrateSingleUserToMultiTenant } from './migrations';
 
 export interface Env {
   FINANCE_KV: KVNamespace;
@@ -56,16 +57,35 @@ function respond(body: unknown, status: number, headers: Record<string, string>)
 
 // ─── Auth middleware ──────────────────────────────────────────────────────────
 
-async function authenticate(request: Request, env: Env): Promise<boolean> {
+async function authenticate(request: Request, env: Env): Promise<{ username: string } | null> {
   const auth = request.headers.get('Authorization') ?? '';
-  if (!auth.startsWith('Bearer ')) return false;
+  if (!auth.startsWith('Bearer ')) return null;
   try {
     const payload = await verifyJWT(auth.slice(7), env.JWT_SECRET);
-    return payload.authenticated === true;
+    if (payload.authenticated !== true || typeof payload.username !== 'string') return null;
+    return { username: payload.username };
   } catch {
-    return false;
+    return null;
   }
 }
+
+// ─── Username helpers ─────────────────────────────────────────────────────────
+
+async function getUsernames(kv: KVNamespace): Promise<string[]> {
+  const raw = await kv.get('meta:usernames');
+  return raw ? JSON.parse(raw) : [];
+}
+
+async function addUsername(kv: KVNamespace, username: string): Promise<void> {
+  const existing = await getUsernames(kv);
+  if (!existing.includes(username)) {
+    await kv.put('meta:usernames', JSON.stringify([...existing, username]));
+  }
+}
+
+// ─── KV key scoping ───────────────────────────────────────────────────────────
+
+const userKey = (username: string, leaf: string) => `users:${username}:${leaf}`;
 
 // ─── Data helpers ─────────────────────────────────────────────────────────────
 
@@ -73,22 +93,22 @@ type Transaction = { id: string; date: string; description: string; category: st
 type TaxBreakdown = { federal: number; state: number; socialSecurity: number; medicare: number; other: number };
 type IncomeEntry = { id: string; date: string; description: string; grossAmount: number; netAmount: number; taxes: TaxBreakdown; source: string };
 
-async function getTransactions(kv: KVNamespace): Promise<Transaction[]> {
-  const raw = await kv.get('data:transactions');
+async function getTransactions(kv: KVNamespace, username: string): Promise<Transaction[]> {
+  const raw = await kv.get(userKey(username, 'data:transactions'));
   return raw ? (JSON.parse(raw) as Transaction[]) : [];
 }
 
-async function saveTransactions(kv: KVNamespace, txns: Transaction[]): Promise<void> {
-  await kv.put('data:transactions', JSON.stringify(txns));
+async function saveTransactions(kv: KVNamespace, username: string, txns: Transaction[]): Promise<void> {
+  await kv.put(userKey(username, 'data:transactions'), JSON.stringify(txns));
 }
 
-async function getIncomeEntries(kv: KVNamespace): Promise<IncomeEntry[]> {
-  const raw = await kv.get('data:income');
+async function getIncomeEntries(kv: KVNamespace, username: string): Promise<IncomeEntry[]> {
+  const raw = await kv.get(userKey(username, 'data:income'));
   return raw ? (JSON.parse(raw) as IncomeEntry[]) : [];
 }
 
-async function saveIncomeEntries(kv: KVNamespace, entries: IncomeEntry[]): Promise<void> {
-  await kv.put('data:income', JSON.stringify(entries));
+async function saveIncomeEntries(kv: KVNamespace, username: string, entries: IncomeEntry[]): Promise<void> {
+  await kv.put(userKey(username, 'data:income'), JSON.stringify(entries));
 }
 
 function generateId(): string {
@@ -134,63 +154,73 @@ export default {
     try {
       // ── Setup Status ──
       if (path === '/api/setup/status' && method === 'GET') {
-        const initialized = (await env.FINANCE_KV.get('auth:initialized')) === 'true';
-        return respond({ initialized }, 200, cors);
+        const metaInitialized = (await env.FINANCE_KV.get('meta:initialized')) === 'true';
+        if (metaInitialized) return respond({ initialized: true, migrationPending: false }, 200, cors);
+        const legacyInitialized = (await env.FINANCE_KV.get('auth:initialized')) === 'true';
+        return respond({ initialized: legacyInitialized, migrationPending: legacyInitialized }, 200, cors);
       }
 
       // ── Initialize Setup ──
       if (path === '/api/setup/init' && method === 'POST') {
-        const alreadyInit = (await env.FINANCE_KV.get('auth:initialized')) === 'true';
-        if (alreadyInit) return respond({ error: 'Already initialized.' }, 400, cors);
-
-        const body = await request.json() as { password?: string };
+        const body = await request.json() as { username?: string; password?: string };
+        const username = (body.username ?? '').trim().toLowerCase();
+        if (!/^[a-z0-9_-]{3,32}$/.test(username)) {
+          return respond({ error: 'Username must be 3–32 characters: lowercase letters, digits, underscore, or dash.' }, 400, cors);
+        }
         if (!body.password || body.password.length < 8) {
           return respond({ error: 'Password must be at least 8 characters.' }, 400, cors);
         }
+        const existing = await getUsernames(env.FINANCE_KV);
+        if (existing.includes(username)) return respond({ error: 'Username already exists.' }, 400, cors);
 
         const passwordHash = await hashPassword(body.password);
         const totpSecret = generateTOTPSecret();
+        const profile = { passwordHash, totpSecret, createdAt: new Date().toISOString(), confirmed: false };
+        await env.FINANCE_KV.put(`users:${username}:profile`, JSON.stringify(profile));
 
-        await env.FINANCE_KV.put('auth:passwordHash', passwordHash);
-        await env.FINANCE_KV.put('auth:totpSecret', totpSecret);
-        // Don't mark as initialized yet — confirm with TOTP first
-
-        return respond({ totpSecret }, 200, cors);
+        return respond({ totpSecret, username }, 200, cors);
       }
 
       // ── Confirm TOTP Setup ──
       if (path === '/api/setup/confirm' && method === 'POST') {
-        const body = await request.json() as { totpCode?: string };
-        const secret = await env.FINANCE_KV.get('auth:totpSecret');
-        if (!secret) return respond({ error: 'Setup not started.' }, 400, cors);
+        const body = await request.json() as { username?: string; totpCode?: string };
+        const username = (body.username ?? '').trim().toLowerCase();
+        const raw = await env.FINANCE_KV.get(`users:${username}:profile`);
+        if (!raw) return respond({ error: 'Setup not started for this user.' }, 400, cors);
+        const profile = JSON.parse(raw) as { totpSecret: string; confirmed: boolean };
         if (!body.totpCode) return respond({ error: 'Missing TOTP code.' }, 400, cors);
 
-        const valid = await verifyTOTP(secret, body.totpCode);
+        const valid = await verifyTOTP(profile.totpSecret, body.totpCode);
         if (!valid) return respond({ error: 'Invalid code.' }, 400, cors);
 
-        await env.FINANCE_KV.put('auth:initialized', 'true');
+        profile.confirmed = true;
+        await env.FINANCE_KV.put(`users:${username}:profile`, JSON.stringify(profile));
+        await addUsername(env.FINANCE_KV, username);
+        await env.FINANCE_KV.put('meta:initialized', 'true');
+
         return respond({ ok: true }, 200, cors);
       }
 
       // ── Login ──
       if (path === '/api/auth/login' && method === 'POST') {
-        const body = await request.json() as { password?: string };
-        const storedHash = await env.FINANCE_KV.get('auth:passwordHash');
-        if (!storedHash || !body.password) {
-          return respond({ error: 'Invalid credentials.' }, 401, cors);
-        }
+        const body = await request.json() as { username?: string; password?: string };
+        const username = (body.username ?? '').trim().toLowerCase();
+        if (!username || !body.password) return respond({ error: 'Invalid credentials.' }, 401, cors);
 
-        const valid = await verifyPassword(body.password, storedHash);
+        const raw = await env.FINANCE_KV.get(`users:${username}:profile`);
+        if (!raw) return respond({ error: 'Invalid credentials.' }, 401, cors);
+        const profile = JSON.parse(raw) as { passwordHash: string };
+
+        const valid = await verifyPassword(body.password, profile.passwordHash);
         if (!valid) return respond({ error: 'Invalid credentials.' }, 401, cors);
 
-        // Issue short-lived pre-auth token (expires in 5 minutes)
-        const preAuthId = generateId();
+        const preAuthId = crypto.randomUUID();
         const preAuthToken = await signJWT(
-          { preAuth: true, id: preAuthId, exp: Math.floor(Date.now() / 1000) + 300 },
+          { preAuth: true, id: preAuthId, username, exp: Math.floor(Date.now() / 1000) + 300 },
           env.JWT_SECRET,
         );
 
-        await env.FINANCE_KV.put(`preauth:${preAuthId}`, '1', { expirationTtl: 300 });
+        await env.FINANCE_KV.put(`preauth:${preAuthId}`, username, { expirationTtl: 300 });
         return respond({ preAuthToken }, 200, cors);
       }
 
@@ -205,32 +235,32 @@ export default {
         try {
           payload = await verifyJWT(body.preAuthToken, env.JWT_SECRET);
         } catch {
-          return respond({ error: 'Invalid or expired session. Please log in again.' }, 401, cors);
+          return respond({ error: 'Session expired. Please log in again.' }, 401, cors);
         }
 
-        if (!payload.preAuth || typeof payload.id !== 'string') {
-          return respond({ error: 'Invalid token type.' }, 401, cors);
+        if (!payload.preAuth || typeof payload.id !== 'string' || typeof payload.username !== 'string') {
+          return respond({ error: 'Invalid token.' }, 401, cors);
         }
 
-        const preAuthEntry = await env.FINANCE_KV.get(`preauth:${payload.id}`);
-        if (!preAuthEntry) return respond({ error: 'Session expired. Please log in again.' }, 401, cors);
+        const username = payload.username;
+        const stored = await env.FINANCE_KV.get(`preauth:${payload.id}`);
+        if (stored !== username) return respond({ error: 'Session expired.' }, 401, cors);
 
-        const secret = await env.FINANCE_KV.get('auth:totpSecret');
-        if (!secret) return respond({ error: 'Server misconfigured.' }, 500, cors);
+        const raw = await env.FINANCE_KV.get(`users:${username}:profile`);
+        if (!raw) return respond({ error: 'User not found.' }, 401, cors);
+        const profile = JSON.parse(raw) as { totpSecret: string };
 
-        const valid = await verifyTOTP(secret, body.totpCode);
+        const valid = await verifyTOTP(profile.totpSecret, body.totpCode);
         if (!valid) return respond({ error: 'Invalid or expired code.' }, 401, cors);
 
-        // Consume the pre-auth token
         await env.FINANCE_KV.delete(`preauth:${payload.id}`);
 
-        // Issue full session token (7 days)
         const token = await signJWT(
-          { authenticated: true, exp: Math.floor(Date.now() / 1000) + 86400 * 7 },
+          { authenticated: true, username, exp: Math.floor(Date.now() / 1000) + 86400 * 7 },
           env.JWT_SECRET,
         );
 
-        return respond({ token }, 200, cors);
+        return respond({ token, username }, 200, cors);
       }
 
       // ── Logout ──
@@ -238,15 +268,38 @@ export default {
         return respond({ ok: true }, 200, cors);
       }
 
+      // ── Migrate legacy single-user data ──
+      if (path === '/api/setup/migrate' && method === 'POST') {
+        const metaInit = (await env.FINANCE_KV.get('meta:initialized')) === 'true';
+        if (metaInit) return respond({ error: 'Already migrated.' }, 400, cors);
+
+        const body = await request.json() as { username?: string; password?: string };
+        const username = (body.username ?? '').trim().toLowerCase();
+        if (!/^[a-z0-9_-]{3,32}$/.test(username)) {
+          return respond({ error: 'Invalid username format.' }, 400, cors);
+        }
+
+        const legacyHash = await env.FINANCE_KV.get('auth:passwordHash');
+        if (!legacyHash) return respond({ error: 'No legacy data to migrate.' }, 400, cors);
+
+        const ok = await verifyPassword(body.password ?? '', legacyHash);
+        if (!ok) return respond({ error: 'Invalid credentials.' }, 401, cors);
+
+        const result = await migrateSingleUserToMultiTenant(env.FINANCE_KV, username);
+        return respond({ ok: true, ...result }, 200, cors);
+      }
+
       // ─────────────────────────────────────────────────────────────────────
       // Protected routes — require valid JWT
       // ─────────────────────────────────────────────────────────────────────
-      const authed = await authenticate(request, env);
-      if (!authed) return respond({ error: 'Unauthorized' }, 401, cors);
+      const auth = await authenticate(request, env);
+      if (!auth) return respond({ error: 'Unauthorized' }, 401, cors);
+
+      const { username } = auth;
 
       // ── GET transactions ──
       if (path === '/api/transactions' && method === 'GET') {
-        const txns = await getTransactions(env.FINANCE_KV);
+        const txns = await getTransactions(env.FINANCE_KV, username);
         return respond(txns, 200, cors);
       }
 
@@ -257,7 +310,7 @@ export default {
           return respond({ error: 'No transactions provided.' }, 400, cors);
         }
 
-        const existing = await getTransactions(env.FINANCE_KV);
+        const existing = await getTransactions(env.FINANCE_KV, username);
 
         // Dedup: match on date + normalized description + rounded amount
         // against existing rows + previously-accepted rows in this same batch.
@@ -283,7 +336,7 @@ export default {
         }
 
         if (added.length > 0) {
-          await saveTransactions(env.FINANCE_KV, [...existing, ...added]);
+          await saveTransactions(env.FINANCE_KV, username, [...existing, ...added]);
         }
         return respond({ added: added.length, skipped }, 200, cors);
       }
@@ -292,10 +345,10 @@ export default {
       const txnDeleteMatch = path.match(/^\/api\/transactions\/([^/]+)$/);
       if (txnDeleteMatch && method === 'DELETE') {
         const id = txnDeleteMatch[1];
-        const txns = await getTransactions(env.FINANCE_KV);
+        const txns = await getTransactions(env.FINANCE_KV, username);
         const next = txns.filter((t) => t.id !== id);
         if (next.length === txns.length) return respond({ error: 'Transaction not found.' }, 404, cors);
-        await saveTransactions(env.FINANCE_KV, next);
+        await saveTransactions(env.FINANCE_KV, username, next);
         return respond({ ok: true }, 200, cors);
       }
 
@@ -309,7 +362,7 @@ export default {
           category?: string;
           amount?: number;
         };
-        const txns = await getTransactions(env.FINANCE_KV);
+        const txns = await getTransactions(env.FINANCE_KV, username);
         const idx = txns.findIndex((t) => t.id === id);
         if (idx < 0) return respond({ error: 'Transaction not found.' }, 404, cors);
 
@@ -323,13 +376,13 @@ export default {
         };
         const next = [...txns];
         next[idx] = updated;
-        await saveTransactions(env.FINANCE_KV, next);
+        await saveTransactions(env.FINANCE_KV, username, next);
         return respond(updated, 200, cors);
       }
 
       // ── GET income ──
       if (path === '/api/income' && method === 'GET') {
-        const entries = await getIncomeEntries(env.FINANCE_KV);
+        const entries = await getIncomeEntries(env.FINANCE_KV, username);
         return respond(entries, 200, cors);
       }
 
@@ -341,7 +394,7 @@ export default {
         if (!body.entry) return respond({ error: 'No entry provided.' }, 400, cors);
 
         const { allowDuplicate, ...rawEntry } = body.entry;
-        const existing = await getIncomeEntries(env.FINANCE_KV);
+        const existing = await getIncomeEntries(env.FINANCE_KV, username);
 
         // Dedup against existing income entries on date + description + netAmount
         // unless the caller explicitly opted to allow a duplicate.
@@ -354,7 +407,7 @@ export default {
         }
 
         const entry: IncomeEntry = { ...rawEntry, id: generateId() };
-        await saveIncomeEntries(env.FINANCE_KV, [...existing, entry]);
+        await saveIncomeEntries(env.FINANCE_KV, username, [...existing, entry]);
 
         // Auto-create tax transactions from income entry. These also go
         // through the transaction dedup logic so we don't double-insert if
@@ -363,7 +416,7 @@ export default {
         const totalTax = (taxes.federal ?? 0) + (taxes.state ?? 0) + (taxes.socialSecurity ?? 0) + (taxes.medicare ?? 0) + (taxes.other ?? 0);
 
         if (totalTax > 0) {
-          const taxTxns = await getTransactions(env.FINANCE_KV);
+          const taxTxns = await getTransactions(env.FINANCE_KV, username);
           const seenTxnKeys = new Set(taxTxns.map(transactionKey));
           const taxEntries: Transaction[] = [];
 
@@ -396,7 +449,7 @@ export default {
           }
 
           if (taxEntries.length > 0) {
-            await saveTransactions(env.FINANCE_KV, [...taxTxns, ...taxEntries]);
+            await saveTransactions(env.FINANCE_KV, username, [...taxTxns, ...taxEntries]);
           }
         }
 
@@ -407,10 +460,10 @@ export default {
       const incDeleteMatch = path.match(/^\/api\/income\/([^/]+)$/);
       if (incDeleteMatch && method === 'DELETE') {
         const id = incDeleteMatch[1];
-        const entries = await getIncomeEntries(env.FINANCE_KV);
+        const entries = await getIncomeEntries(env.FINANCE_KV, username);
         const next = entries.filter((e) => e.id !== id);
         if (next.length === entries.length) return respond({ error: 'Income entry not found.' }, 404, cors);
-        await saveIncomeEntries(env.FINANCE_KV, next);
+        await saveIncomeEntries(env.FINANCE_KV, username, next);
         return respond({ ok: true }, 200, cors);
       }
 
@@ -424,7 +477,7 @@ export default {
           grossAmount?: number;
           netAmount?: number;
         };
-        const entries = await getIncomeEntries(env.FINANCE_KV);
+        const entries = await getIncomeEntries(env.FINANCE_KV, username);
         const idx = entries.findIndex((e) => e.id === id);
         if (idx < 0) return respond({ error: 'Income entry not found.' }, 404, cors);
 
@@ -438,13 +491,13 @@ export default {
         };
         const next = [...entries];
         next[idx] = updated;
-        await saveIncomeEntries(env.FINANCE_KV, next);
+        await saveIncomeEntries(env.FINANCE_KV, username, next);
         return respond(updated, 200, cors);
       }
 
       // ── GET user categories (custom categories + description mappings) ──
       if (path === '/api/user-categories' && method === 'GET') {
-        const raw = await env.FINANCE_KV.get('data:userCategories');
+        const raw = await env.FINANCE_KV.get(userKey(username, 'data:userCategories'));
         const data = raw ? JSON.parse(raw) : { customCategories: [], mappings: [] };
         return respond(data, 200, cors);
       }
@@ -466,7 +519,7 @@ export default {
             )
           : [];
         await env.FINANCE_KV.put(
-          'data:userCategories',
+          userKey(username, 'data:userCategories'),
           JSON.stringify({ customCategories, mappings }),
         );
         return respond({ ok: true }, 200, cors);
@@ -482,20 +535,20 @@ export default {
         let deletedIncome = 0;
 
         if (txnIds.size > 0) {
-          const existing = await getTransactions(env.FINANCE_KV);
+          const existing = await getTransactions(env.FINANCE_KV, username);
           const next = existing.filter((t) => !txnIds.has(t.id));
           deletedTransactions = existing.length - next.length;
           if (deletedTransactions > 0) {
-            await saveTransactions(env.FINANCE_KV, next);
+            await saveTransactions(env.FINANCE_KV, username, next);
           }
         }
 
         if (incIds.size > 0) {
-          const existing = await getIncomeEntries(env.FINANCE_KV);
+          const existing = await getIncomeEntries(env.FINANCE_KV, username);
           const next = existing.filter((e) => !incIds.has(e.id));
           deletedIncome = existing.length - next.length;
           if (deletedIncome > 0) {
-            await saveIncomeEntries(env.FINANCE_KV, next);
+            await saveIncomeEntries(env.FINANCE_KV, username, next);
           }
         }
 
@@ -508,8 +561,8 @@ export default {
         if (body.confirm !== true) {
           return respond({ error: 'Confirmation required.' }, 400, cors);
         }
-        await env.FINANCE_KV.delete('data:transactions');
-        await env.FINANCE_KV.delete('data:income');
+        await env.FINANCE_KV.delete(userKey(username, 'data:transactions'));
+        await env.FINANCE_KV.delete(userKey(username, 'data:income'));
         return respond({ ok: true }, 200, cors);
       }
 
@@ -522,7 +575,7 @@ export default {
         if (from === to) return respond({ updated: 0 }, 200, cors);
 
         // Update transactions
-        const txns = await getTransactions(env.FINANCE_KV);
+        const txns = await getTransactions(env.FINANCE_KV, username);
         let txnUpdates = 0;
         const nextTxns = txns.map((t) => {
           if (t.category === from) {
@@ -531,10 +584,10 @@ export default {
           }
           return t;
         });
-        if (txnUpdates > 0) await saveTransactions(env.FINANCE_KV, nextTxns);
+        if (txnUpdates > 0) await saveTransactions(env.FINANCE_KV, username, nextTxns);
 
         // Update user categories document
-        const raw = await env.FINANCE_KV.get('data:userCategories');
+        const raw = await env.FINANCE_KV.get(userKey(username, 'data:userCategories'));
         const userCats = raw ? JSON.parse(raw) as { customCategories: string[]; mappings: Array<{ pattern: string; category: string }> } : { customCategories: [], mappings: [] };
 
         // Rename in customCategories list (if the old name was a custom one)
@@ -556,7 +609,7 @@ export default {
           return m;
         });
 
-        await env.FINANCE_KV.put('data:userCategories', JSON.stringify(userCats));
+        await env.FINANCE_KV.put(userKey(username, 'data:userCategories'), JSON.stringify(userCats));
 
         return respond({ updated: txnUpdates, mappingsUpdated: mappingUpdates }, 200, cors);
       }
@@ -569,7 +622,7 @@ export default {
         if (!name) return respond({ error: 'Missing category name.' }, 400, cors);
 
         // Reassign transactions
-        const txns = await getTransactions(env.FINANCE_KV);
+        const txns = await getTransactions(env.FINANCE_KV, username);
         let txnUpdates = 0;
         const nextTxns = txns.map((t) => {
           if (t.category === name) {
@@ -578,16 +631,16 @@ export default {
           }
           return t;
         });
-        if (txnUpdates > 0) await saveTransactions(env.FINANCE_KV, nextTxns);
+        if (txnUpdates > 0) await saveTransactions(env.FINANCE_KV, username, nextTxns);
 
         // Remove from custom list + drop any mappings that pointed at this category
-        const raw = await env.FINANCE_KV.get('data:userCategories');
+        const raw = await env.FINANCE_KV.get(userKey(username, 'data:userCategories'));
         const userCats = raw ? JSON.parse(raw) as { customCategories: string[]; mappings: Array<{ pattern: string; category: string }> } : { customCategories: [], mappings: [] };
         userCats.customCategories = userCats.customCategories.filter((c) => c !== name);
         const mappingsBefore = userCats.mappings.length;
         userCats.mappings = userCats.mappings.filter((m) => m.category !== name);
         const mappingsRemoved = mappingsBefore - userCats.mappings.length;
-        await env.FINANCE_KV.put('data:userCategories', JSON.stringify(userCats));
+        await env.FINANCE_KV.put(userKey(username, 'data:userCategories'), JSON.stringify(userCats));
 
         return respond({ reassigned: txnUpdates, mappingsRemoved }, 200, cors);
       }
