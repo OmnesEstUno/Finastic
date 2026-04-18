@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   BarChart,
   Bar,
@@ -6,24 +6,45 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
   Cell,
 } from 'recharts';
-import { parseISO } from 'date-fns';
 import { Transaction, IncomeEntry, TimeRange, Category } from '../types';
-import { getTransactions, getIncome } from '../api/client';
+import {
+  getTransactions,
+  getIncome,
+  bulkDelete,
+  addTransactions,
+  addIncome,
+  updateTransaction,
+  updateIncome,
+  AddTransactionInput,
+  AddIncomeInput,
+} from '../api/client';
 import {
   buildMonthlyExpenseTable,
   buildMonthlyBalance,
   buildCategoryAverages,
   formatCurrency,
+  MONTH_NAMES,
 } from '../utils/dataProcessing';
-import { CATEGORY_COLORS } from '../utils/categories';
+import { getCategoryColor } from '../utils/categories';
 import CategoryLineChart, { TIME_RANGE_LABELS } from '../components/charts/CategoryLineChart';
+import ExpenseCategoryTable from '../components/dashboard/ExpenseCategoryTable';
+import MonthlyBalanceView from '../components/dashboard/MonthlyBalanceView';
+import ExpandedMonthView from '../components/dashboard/ExpandedMonthView';
+import Toast from '../components/Toast';
+import EmptyState from '../components/EmptyState';
+import { useUserCategories } from '../hooks/useUserCategories';
 import Layout from '../components/layout/Layout';
-
-const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+import DangerZone from '../components/DangerZone';
+// Undo-toast payload: what was just deleted, so we can restore it if the
+// user clicks Undo before the timeout fires.
+interface PendingUndo {
+  transactions: Transaction[];
+  income: IncomeEntry[];
+  label: string;
+}
 
 export default function Dashboard() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -32,16 +53,119 @@ export default function Dashboard() {
   const [error, setError] = useState('');
   const [timeRange, setTimeRange] = useState<TimeRange>('year');
   const [expandedCategory, setExpandedCategory] = useState<Category | null>(null);
+  const [expandedMonth, setExpandedMonth] = useState<number | null>(null);
+
+  // Undo toast — populated right after a successful delete
+  const [pendingUndo, setPendingUndo] = useState<PendingUndo | null>(null);
+
+  // Custom categories used by the edit flow
+  const { userCategories, addCustomCategory } = useUserCategories();
+
+  const refetchAll = useCallback(async () => {
+    try {
+      const [txns, inc] = await Promise.all([getTransactions(), getIncome()]);
+      setTransactions(txns);
+      setIncome(inc);
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }, []);
 
   useEffect(() => {
-    Promise.all([getTransactions(), getIncome()])
-      .then(([txns, inc]) => {
-        setTransactions(txns);
-        setIncome(inc);
-      })
-      .catch((err) => setError((err as Error).message))
-      .finally(() => setLoading(false));
-  }, []);
+    refetchAll().finally(() => setLoading(false));
+  }, [refetchAll]);
+
+  /**
+   * Delete wrapper: captures the full rows being deleted (for undo), then
+   * calls bulkDelete and shows the undo toast. The caller just provides the
+   * IDs + a short label.
+   */
+  const handleDelete = useCallback(
+    async (txnIds: string[], incIds: string[], label: string) => {
+      // Snapshot the rows we're about to delete — we need the full objects
+      // (not just IDs) to restore them on undo.
+      const deletedTxns = transactions.filter((t) => txnIds.includes(t.id));
+      const deletedInc = income.filter((e) => incIds.includes(e.id));
+
+      try {
+        await bulkDelete(txnIds, incIds);
+        await refetchAll();
+        // Arm the undo toast
+        setPendingUndo({ transactions: deletedTxns, income: deletedInc, label });
+      } catch (err) {
+        window.alert(`Delete failed: ${(err as Error).message}`);
+      }
+    },
+    [transactions, income, refetchAll],
+  );
+
+  /**
+   * Undo handler — re-POSTs the previously-deleted rows with
+   * allowDuplicate=true so the server's dedup doesn't reject them. Transactions
+   * go through addTransactions (batch), income entries go one at a time.
+   */
+  const handleUndo = useCallback(async () => {
+    if (!pendingUndo) return;
+    try {
+      if (pendingUndo.transactions.length > 0) {
+        const payload: AddTransactionInput[] = pendingUndo.transactions.map((t) => ({
+          date: t.date,
+          description: t.description,
+          category: t.category,
+          amount: t.amount,
+          type: t.type,
+          source: t.source,
+          allowDuplicate: true,
+        }));
+        await addTransactions(payload);
+      }
+      for (const e of pendingUndo.income) {
+        const payload: AddIncomeInput = {
+          date: e.date,
+          description: e.description,
+          grossAmount: e.grossAmount,
+          netAmount: e.netAmount,
+          taxes: e.taxes,
+          source: e.source,
+          allowDuplicate: true,
+        };
+        await addIncome(payload);
+      }
+      await refetchAll();
+    } catch (err) {
+      window.alert(`Undo failed: ${(err as Error).message}`);
+    } finally {
+      setPendingUndo(null);
+    }
+  }, [pendingUndo, refetchAll]);
+
+  /**
+   * Update wrapper for inline edit. Dispatches to updateTransaction or
+   * updateIncome based on row kind, then refetches.
+   */
+  const handleUpdateTransaction = useCallback(
+    async (id: string, updates: Parameters<typeof updateTransaction>[1]) => {
+      try {
+        await updateTransaction(id, updates);
+        await refetchAll();
+      } catch (err) {
+        window.alert(`Update failed: ${(err as Error).message}`);
+      }
+    },
+    [refetchAll],
+  );
+
+  const handleUpdateIncome = useCallback(
+    async (id: string, updates: Parameters<typeof updateIncome>[1]) => {
+      try {
+        await updateIncome(id, updates);
+        await refetchAll();
+      } catch (err) {
+        window.alert(`Update failed: ${(err as Error).message}`);
+      }
+    },
+    [refetchAll],
+  );
 
   if (loading) {
     return (
@@ -149,6 +273,10 @@ export default function Dashboard() {
               currentMonth={currentMonth}
               expandedCategory={expandedCategory}
               onSelect={(c) => setExpandedCategory(c === expandedCategory ? null : c)}
+              onDelete={handleDelete}
+              onUpdateTransaction={handleUpdateTransaction}
+              userCategories={userCategories}
+              addCustomCategory={addCustomCategory}
             />
           )}
         </div>
@@ -158,72 +286,42 @@ export default function Dashboard() {
       <div className="section">
         <div className="card">
           <div className="card-header">
-            <h2>Income vs. Expenditures — {new Date().getFullYear()}</h2>
+            <h2>
+              Income vs. Expenditures — {new Date().getFullYear()}
+              {expandedMonth !== null && (
+                <span style={{ color: 'var(--text-muted)', fontWeight: 400, marginLeft: 8 }}>
+                  / {MONTH_NAMES[expandedMonth]}
+                </span>
+              )}
+            </h2>
+            {expandedMonth !== null && (
+              <button className="btn btn-ghost btn-sm" onClick={() => setExpandedMonth(null)}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polyline points="15 18 9 12 15 6" />
+                </svg>
+                Back to full year
+              </button>
+            )}
           </div>
           {monthlyBalance.length === 0 ? (
             <EmptyState message={`No data for ${new Date().getFullYear()} yet.`} />
+          ) : expandedMonth === null ? (
+            <MonthlyBalanceView
+              monthlyBalance={monthlyBalance}
+              onMonthClick={(idx) => setExpandedMonth(idx)}
+            />
           ) : (
-            <>
-              {/* Numeric table */}
-              <div className="table-wrapper" style={{ marginBottom: 24 }}>
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Month</th>
-                      <th className="num">Income</th>
-                      <th className="num">Expenses</th>
-                      <th className="num">Surplus / Deficit</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {monthlyBalance.map((row) => (
-                      <tr key={row.month}>
-                        <td>{row.month}</td>
-                        <td className="num text-success">{row.income > 0 ? formatCurrency(row.income) : <span className="zero">—</span>}</td>
-                        <td className="num text-danger">{row.expenses > 0 ? formatCurrency(row.expenses) : <span className="zero">—</span>}</td>
-                        <td className={`num ${row.surplus >= 0 ? 'text-success' : 'text-danger'}`}>
-                          {(row.income > 0 || row.expenses > 0) ? formatCurrency(row.surplus) : <span className="zero">—</span>}
-                        </td>
-                      </tr>
-                    ))}
-                    {/* YTD totals */}
-                    <tr style={{ background: 'var(--bg-elevated)', fontWeight: 600 }}>
-                      <td>YTD Total</td>
-                      <td className="num text-success">
-                        {formatCurrency(monthlyBalance.reduce((s, r) => s + r.income, 0))}
-                      </td>
-                      <td className="num text-danger">
-                        {formatCurrency(monthlyBalance.reduce((s, r) => s + r.expenses, 0))}
-                      </td>
-                      <td className={`num ${monthlyBalance.reduce((s, r) => s + r.surplus, 0) >= 0 ? 'text-success' : 'text-danger'}`}>
-                        {formatCurrency(monthlyBalance.reduce((s, r) => s + r.surplus, 0))}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Bar chart */}
-              <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={monthlyBalance} margin={{ top: 4, right: 16, left: 8, bottom: 4 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="month" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={{ stroke: 'var(--border)' }} tickLine={false} />
-                  <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `$${v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}`} />
-                  <Tooltip
-                    contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, fontSize: '0.8125rem' }}
-                    formatter={(value: number, name: string) => [formatCurrency(value), name]}
-                  />
-                  <Legend wrapperStyle={{ fontSize: '0.8125rem', color: 'var(--text-secondary)' }} />
-                  <Bar dataKey="income" name="Income" fill="#4ade80" radius={[3, 3, 0, 0]} />
-                  <Bar dataKey="expenses" name="Expenses" fill="#f87171" radius={[3, 3, 0, 0]} />
-                  <Bar dataKey="surplus" name="Surplus" radius={[3, 3, 0, 0]}>
-                    {monthlyBalance.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.surplus >= 0 ? '#4ade80' : '#f87171'} fillOpacity={0.5} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </>
+            <ExpandedMonthView
+              transactions={transactions}
+              incomeEntries={income}
+              year={new Date().getFullYear()}
+              month={expandedMonth}
+              onDelete={handleDelete}
+              onUpdateTransaction={handleUpdateTransaction}
+              onUpdateIncome={handleUpdateIncome}
+              userCategories={userCategories}
+              addCustomCategory={addCustomCategory}
+            />
           )}
         </div>
       </div>
@@ -266,7 +364,7 @@ export default function Dashboard() {
                                     width: 8,
                                     height: 8,
                                     borderRadius: '50%',
-                                    background: CATEGORY_COLORS[row.category],
+                                    background: getCategoryColor(row.category),
                                     flexShrink: 0,
                                   }}
                                 />
@@ -281,7 +379,7 @@ export default function Dashboard() {
                                   className="progress-bar-fill"
                                   style={{
                                     width: `${pct}%`,
-                                    background: CATEGORY_COLORS[row.category],
+                                    background: getCategoryColor(row.category),
                                   }}
                                 />
                               </div>
@@ -324,7 +422,7 @@ export default function Dashboard() {
                     {categoryAverages
                       .sort((a, b) => b.avgPerMonth - a.avgPerMonth)
                       .map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={CATEGORY_COLORS[entry.category]} />
+                        <Cell key={`cell-${index}`} fill={getCategoryColor(entry.category)} />
                       ))}
                   </Bar>
                 </BarChart>
@@ -333,188 +431,28 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      {/* ─── Danger Zone: purge all data + export backup ─────────── */}
+      <div className="section">
+        <DangerZone
+          transactions={transactions}
+          income={income}
+          userCategories={userCategories}
+          onPurged={refetchAll}
+        />
+      </div>
+
+      {/* Undo toast — rendered last so it sits on top of everything */}
+      {pendingUndo && (
+        <Toast
+          message={pendingUndo.label}
+          actionLabel="Undo"
+          onAction={handleUndo}
+          onDismiss={() => setPendingUndo(null)}
+          duration={5000}
+        />
+      )}
     </Layout>
   );
 }
 
-function EmptyState({ message }: { message: string }) {
-  return (
-    <div
-      style={{
-        padding: '48px 24px',
-        textAlign: 'center',
-        color: 'var(--text-muted)',
-        fontSize: '0.875rem',
-      }}
-    >
-      <svg
-        width="40"
-        height="40"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        style={{ margin: '0 auto 12px', opacity: 0.4 }}
-      >
-        <rect x="3" y="3" width="18" height="18" rx="2" />
-        <path d="M3 9h18" />
-        <path d="M9 21V9" />
-      </svg>
-      <p>{message}</p>
-    </div>
-  );
-}
-
-// ─── Expandable Expense Category Table ─────────────────────────────────────
-
-interface ExpenseCategoryTableProps {
-  monthlyTable: Array<{ category: Category; months: number[]; total: number }>;
-  transactions: Transaction[];
-  currentMonth: number;
-  expandedCategory: Category | null;
-  onSelect: (category: Category) => void;
-}
-
-function ExpenseCategoryTable({
-  monthlyTable,
-  transactions,
-  currentMonth,
-  expandedCategory,
-  onSelect,
-}: ExpenseCategoryTableProps) {
-  const year = new Date().getFullYear();
-  const visibleRows = expandedCategory
-    ? monthlyTable.filter((r) => r.category === expandedCategory)
-    : monthlyTable;
-
-  // Individual transactions in the expanded category for the current year
-  const categoryTransactions = expandedCategory
-    ? transactions
-        .filter((t) => {
-          if (t.type !== 'expense') return false;
-          if (t.category !== expandedCategory) return false;
-          return parseISO(t.date).getFullYear() === year;
-        })
-        .sort((a, b) => (a.date < b.date ? 1 : -1))
-    : [];
-
-  return (
-    <>
-      <div className="table-wrapper">
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Category</th>
-              {MONTH_NAMES.slice(0, currentMonth + 1).map((m) => (
-                <th key={m} className="num">{m}</th>
-              ))}
-              <th className="num">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {visibleRows.map((row) => {
-              const isExpanded = expandedCategory === row.category;
-              return (
-                <tr
-                  key={row.category}
-                  onClick={() => onSelect(row.category)}
-                  style={{
-                    cursor: 'pointer',
-                    background: isExpanded ? 'var(--accent-dim)' : undefined,
-                  }}
-                  title={isExpanded ? 'Click to collapse' : 'Click to view transactions'}
-                >
-                  <td>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                      <span
-                        style={{
-                          width: 8,
-                          height: 8,
-                          borderRadius: '50%',
-                          background: CATEGORY_COLORS[row.category],
-                          flexShrink: 0,
-                        }}
-                      />
-                      {row.category}
-                      <svg
-                        width="12"
-                        height="12"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        style={{ opacity: 0.5, transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}
-                      >
-                        <polyline points="9 18 15 12 9 6" />
-                      </svg>
-                    </span>
-                  </td>
-                  {row.months.slice(0, currentMonth + 1).map((amt, mi) => (
-                    <td key={mi} className={`num ${amt === 0 ? 'zero' : ''}`}>
-                      {amt > 0 ? formatCurrency(amt) : '—'}
-                    </td>
-                  ))}
-                  <td className="num" style={{ fontWeight: 600 }}>
-                    {formatCurrency(row.total)}
-                  </td>
-                </tr>
-              );
-            })}
-            {!expandedCategory && (
-              <tr style={{ background: 'var(--bg-elevated)', fontWeight: 600 }}>
-                <td>Total</td>
-                {MONTH_NAMES.slice(0, currentMonth + 1).map((_, mi) => {
-                  const monthTotal = monthlyTable.reduce((s, r) => s + r.months[mi], 0);
-                  return (
-                    <td key={mi} className="num">
-                      {monthTotal > 0 ? formatCurrency(monthTotal) : '—'}
-                    </td>
-                  );
-                })}
-                <td className="num">
-                  {formatCurrency(monthlyTable.reduce((s, r) => s + r.total, 0))}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Transaction drill-down list */}
-      {expandedCategory && (
-        <div style={{ marginTop: 20, borderTop: '1px solid var(--border-subtle)', paddingTop: 16 }}>
-          <h3 style={{ marginBottom: 12, color: 'var(--text-secondary)' }}>
-            Transactions in {expandedCategory} — {year}
-            <span className="text-xs text-muted" style={{ marginLeft: 8 }}>
-              ({categoryTransactions.length} record{categoryTransactions.length !== 1 ? 's' : ''})
-            </span>
-          </h3>
-          {categoryTransactions.length === 0 ? (
-            <p className="text-muted text-sm">No transactions in this category for {year}.</p>
-          ) : (
-            <div className="preview-scroll" style={{ maxHeight: 420 }}>
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Description</th>
-                    <th className="num">Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {categoryTransactions.map((t) => (
-                    <tr key={t.id}>
-                      <td className="text-sm font-mono" style={{ whiteSpace: 'nowrap' }}>{t.date}</td>
-                      <td>{t.description}</td>
-                      <td className="num text-danger">{formatCurrency(Math.abs(t.amount))}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
-    </>
-  );
-}

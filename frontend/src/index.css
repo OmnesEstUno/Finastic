@@ -95,7 +95,15 @@ a:hover { color: var(--accent-hover); }
   gap: 8px;
 }
 
-.navbar-brand svg { color: var(--accent); }
+.navbar-tagline {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  letter-spacing: 0;
+  padding-left: 10px;
+  margin-left: 2px;
+  border-left: 1px solid var(--border);
+}
 
 .navbar-links {
   display: flex;
@@ -439,9 +447,9 @@ a:hover { color: var(--accent-hover); }
 .font-mono { font-family: 'SF Mono', 'Fira Code', monospace; }
 .text-right { text-align: right; }
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
 
 @media (max-width: 640px) {
-  .grid-2, .grid-3 { grid-template-columns: 1fr; }
+  .grid-2 { grid-template-columns: 1fr; }
   .hide-mobile { display: none; }
+  .login-card { padding: 24px; }
 }

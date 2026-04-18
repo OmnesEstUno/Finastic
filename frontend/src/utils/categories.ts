@@ -1,4 +1,4 @@
-import { Category } from '../types';
+import { Category, CategoryMapping, BuiltInCategory } from '../types';
 
 // ─── Merchant Rules ──────────────────────────────────────────────────────────
 // Order matters — first match wins. More specific rules go first.
@@ -189,42 +189,6 @@ const CSV_CATEGORY_MAP: Record<string, Category> = {
   'pet services': 'Pet Care',
 };
 
-// ─── Categories that mark a row as INCOME in any bank CSV ────────────────
-// Positive amounts + one of these labels → income (not a refund).
-const INCOME_CATEGORY_STRINGS = new Set([
-  'paycheck',
-  'payroll',
-  'salary',
-  'wages',
-  'income',
-  'interest income',
-  'dividend',
-  'dividends',
-  'investment income',
-  'refund',           // tax refund
-  'tax refund',
-  'federal tax',
-  'state tax',
-  'taxes',
-  'tax return',
-  'benefits',
-  'social security',
-  'unemployment',
-]);
-
-// ─── Categories that mean "skip this row entirely" ──────────────────────
-// Transfers between your own accounts, credit card payoffs — never count as
-// income or expense (they'd double-count against the credit-card CSV).
-const SKIP_CATEGORY_STRINGS = new Set([
-  'transfer',
-  'transfers',
-  'internal transfer',
-  'credit card payment',
-  'credit card payoff',
-  'card payment',
-  'balance transfer',
-]);
-
 // ─── Public API ─────────────────────────────────────────────────────────────
 
 export function categorize(description: string, csvCategory?: string): Category {
@@ -245,36 +209,10 @@ export function categorize(description: string, csvCategory?: string): Category 
   return 'Other';
 }
 
-// Returns true if a CSV "category" column value means this row should be
-// skipped (transfer / CC payoff). Bank-agnostic.
-export function isSkippedCategory(csvCategory: string | undefined): boolean {
-  if (!csvCategory) return false;
-  return SKIP_CATEGORY_STRINGS.has(csvCategory.trim().toLowerCase());
-}
-
-// Returns true if a CSV "category" column value (plus positive amount) means
-// this row is income. Bank-agnostic.
-export function isIncomeCategory(csvCategory: string | undefined): boolean {
-  if (!csvCategory) return false;
-  return INCOME_CATEGORY_STRINGS.has(csvCategory.trim().toLowerCase());
-}
-
-// Returns true if a description matches patterns that strongly indicate this
-// row is income, regardless of CSV category. Used when there is no category
-// column.
-export function descriptionLooksLikeIncome(description: string): boolean {
-  return /\b(payroll|paycheck|direct\s+dep|salary|wages|tax\s+(refund|return)|irs\s+treas|treas\s+310|va\s+benef|benefits|unemployment|\bssa\b|ssi\b|dividend|interest\s+paid|interest\s+income|deposit@mobile|mobile\s+deposit|funds\s+transfer\s+cr|remote\s+deposit)\b/i.test(description);
-}
-
-// Returns true if a description matches patterns for transfers / CC payoffs.
-// Used when there is no category column.
-export function descriptionLooksLikeTransferOrPayment(description: string): boolean {
-  return /\b(transfer\s+to|transfer\s+from|venmo\s+(payment|cashout)|\bzelle\b|autopay|auto-pmt|online\s+payment|payment\s+thank\s+you|automatic\s+payment|credit\s+card\s+payment|card\s+payment|epay|e-pay|chase\s+credit\s+crd|citi\s+card)\b/i.test(description);
-}
-
 // ─── Chart Colors ───────────────────────────────────────────────────────────
 
-export const CATEGORY_COLORS: Record<Category, string> = {
+// Curated colors for built-in categories.
+export const CATEGORY_COLORS: Record<BuiltInCategory, string> = {
   'Costco': '#F59E0B',
   'Amazon': '#F97316',
   'Groceries': '#84CC16',
@@ -293,3 +231,77 @@ export const CATEGORY_COLORS: Record<Category, string> = {
   'Taxes': '#94A3B8',
   'Other': '#71717A',
 };
+
+// Palette used for user-created custom categories. Picked deterministically
+// based on a hash of the category name so the same name always gets the same
+// color across sessions.
+const CUSTOM_CATEGORY_PALETTE = [
+  '#fb923c', // orange 400
+  '#facc15', // yellow 400
+  '#14b8a6', // teal 500
+  '#06b6d4', // cyan 500
+  '#6366f1', // indigo 500
+  '#c026d3', // fuchsia 600
+  '#e11d48', // rose 600
+  '#a855f7', // purple 500
+  '#0ea5e9', // sky 500
+  '#10b981', // emerald 500
+];
+
+function hashString(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) {
+    h = ((h << 5) - h) + s.charCodeAt(i);
+    h |= 0;
+  }
+  return Math.abs(h);
+}
+
+/**
+ * Resolve a color for any category (built-in or custom). Built-ins use their
+ * curated color from CATEGORY_COLORS; custom categories get a deterministic
+ * color from the custom palette based on the name hash.
+ */
+export function getCategoryColor(category: Category): string {
+  const builtIn = (CATEGORY_COLORS as Record<string, string | undefined>)[category];
+  if (builtIn) return builtIn;
+  return CUSTOM_CATEGORY_PALETTE[hashString(category) % CUSTOM_CATEGORY_PALETTE.length];
+}
+
+// ─── User Mappings ──────────────────────────────────────────────────────────
+
+/**
+ * Derive a matching pattern from a transaction description for use in
+ * user-defined mappings. Takes the prefix up to the first digit, asterisk, or
+ * hash character (which typically marks a per-transaction unique ID), and
+ * caps at 40 characters.
+ *
+ * Examples:
+ *   "AMAZON MKTPL*BC50G3AR0"     → "AMAZON MKTPL"
+ *   "LUCKY #745 REDWOOD"         → "LUCKY"
+ *   "T-MOBILE PCS SVC ****7265"  → "T-MOBILE PCS SVC"
+ */
+export function derivePattern(description: string): string {
+  const match = description.match(/^[^0-9*#]+/);
+  const prefix = (match ? match[0] : description).trim();
+  return prefix.slice(0, 40).trim();
+}
+
+/**
+ * Check user-defined mappings for a description match. Returns the associated
+ * category or null if no mapping applies. Uses case-insensitive substring
+ * matching.
+ */
+export function applyUserMappings(
+  description: string,
+  mappings: CategoryMapping[] | undefined,
+): Category | null {
+  if (!mappings || mappings.length === 0) return null;
+  const desc = description.toLowerCase();
+  for (const m of mappings) {
+    const pattern = m.pattern?.trim();
+    if (!pattern) continue;
+    if (desc.includes(pattern.toLowerCase())) return m.category;
+  }
+  return null;
+}

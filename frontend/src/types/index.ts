@@ -1,4 +1,4 @@
-export const CATEGORIES = [
+export const BUILT_IN_CATEGORIES = [
   'Costco',
   'Amazon',
   'Groceries',
@@ -18,7 +18,23 @@ export const CATEGORIES = [
   'Other',
 ] as const;
 
-export type Category = (typeof CATEGORIES)[number];
+export type BuiltInCategory = (typeof BUILT_IN_CATEGORIES)[number];
+
+// Category is any string — users can create their own.
+// Built-in categories get curated colors; custom ones get a hash-derived color.
+export type Category = string;
+
+/** A user-defined rule that maps a description pattern to a category. */
+export interface CategoryMapping {
+  pattern: string;        // matched as a case-insensitive substring of the description
+  category: Category;     // can be a built-in or a custom category name
+}
+
+/** The user's persisted custom-category state, stored server-side in KV. */
+export interface UserCategories {
+  customCategories: string[];
+  mappings: CategoryMapping[];
+}
 
 export interface Transaction {
   id: string;
@@ -79,12 +95,3 @@ export interface ParseError {
   message: string;
 }
 
-export interface SetupStatus {
-  initialized: boolean;
-}
-
-export interface AuthState {
-  step: 'idle' | 'password' | 'totp' | 'authenticated';
-  preAuthToken?: string;
-  error?: string;
-}
