@@ -31,6 +31,7 @@ import {
   buildDailyBalance,
   buildMonthEvents,
   formatCurrency,
+  MONTH_NAMES,
 } from '../utils/dataProcessing';
 import { getCategoryColor } from '../utils/categories';
 import CategoryLineChart, { TIME_RANGE_LABELS } from '../components/charts/CategoryLineChart';
@@ -54,8 +55,6 @@ interface PendingUndo {
   income: IncomeEntry[];
   label: string;
 }
-
-const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 export default function Dashboard() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);

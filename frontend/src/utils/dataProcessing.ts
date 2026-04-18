@@ -16,6 +16,8 @@ export function getTrendingCategories(transactions: Transaction[]): Category[] {
   return [...set].sort();
 }
 
+export const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
+
 // ─── Time Range Helpers ──────────────────────────────────────────────────────
 
 function getDateRange(range: TimeRange): { start: Date; end: Date } {
@@ -163,7 +165,6 @@ export function buildMonthlyBalance(transactions: Transaction[], incomeEntries: 
     // Taxes are already tracked as separate transactions
   });
 
-  const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const currentMonth = new Date().getMonth();
 
   return MONTH_NAMES.slice(0, currentMonth + 1).map((month, i) => ({
