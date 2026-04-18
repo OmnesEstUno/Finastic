@@ -39,14 +39,15 @@ import CategorySelect, { NEW_CATEGORY_SENTINEL } from '../components/CategorySel
 import Toast from '../components/Toast';
 import { useUserCategories } from '../hooks/useUserCategories';
 import Layout from '../components/layout/Layout';
-
-type DrillDownRange = 'year' | 'last12' | 'last3' | 'all';
-const DRILL_DOWN_RANGE_LABELS: Record<DrillDownRange, string> = {
-  year: 'This year',
-  last12: 'Last 12 months',
-  last3: 'Last 3 months',
-  all: 'All time',
-};
+import {
+  SURPLUS_COLOR,
+  DEFICIT_COLOR,
+  INCOME_COLOR,
+  EXPENSE_COLOR,
+  DrillDownRange,
+  DRILL_DOWN_RANGE_LABELS,
+  formatAxisCurrency,
+} from '../components/dashboard/constants';
 
 // Undo-toast payload: what was just deleted, so we can restore it if the
 // user clicks Undo before the timeout fires.
@@ -962,11 +963,6 @@ function ExpenseCategoryTable({
 
 // ─── Monthly balance: normal view ───────────────────────────────────────────
 
-const SURPLUS_COLOR = '#7dd3fc'; // muted sky blue
-const DEFICIT_COLOR = '#a78bfa'; // muted violet
-const INCOME_COLOR = '#4ade80';
-const EXPENSE_COLOR = '#f87171';
-
 interface MonthlyBalanceViewProps {
   monthlyBalance: Array<{
     month: string;
@@ -1083,14 +1079,6 @@ function MonthlyBalanceView({ monthlyBalance, onMonthClick }: MonthlyBalanceView
       </ResponsiveContainer>
     </>
   );
-}
-
-// Axis tick formatter that handles negative values cleanly ("-$1k", "-$500")
-function formatAxisCurrency(v: number): string {
-  const abs = Math.abs(v);
-  const sign = v < 0 ? '-' : '';
-  const short = abs >= 1000 ? `${(abs / 1000).toFixed(abs >= 10000 ? 0 : 1)}k` : String(abs);
-  return `${sign}$${short}`;
 }
 
 // ─── Monthly balance: expanded (per-month) view ────────────────────────────
