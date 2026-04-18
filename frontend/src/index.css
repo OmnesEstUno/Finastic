@@ -447,9 +447,8 @@ a:hover { color: var(--accent-hover); }
 .font-mono { font-family: 'SF Mono', 'Fira Code', monospace; }
 .text-right { text-align: right; }
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
 
 @media (max-width: 640px) {
-  .grid-2, .grid-3 { grid-template-columns: 1fr; }
+  .grid-2 { grid-template-columns: 1fr; }
   .hide-mobile { display: none; }
 }
