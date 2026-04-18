@@ -27,8 +27,30 @@ export interface Env {
   ADMIN_INIT_SECRET?: string;   // optional — absence disables /api/admin/init
 }
 
-/** Auth context returned by authenticate(). Will grow to include instance/workspace id in Task 3. */
+/** Auth context returned by authenticate(). */
 type AuthContext = { username: string };
+
+// ─── Instance type ────────────────────────────────────────────────────────────
+
+interface Instance {
+  id: string;
+  name: string;
+  owner: string;
+  members: string[];
+  createdAt: string;
+}
+
+// ─── User profile type ────────────────────────────────────────────────────────
+
+interface UserProfile {
+  passwordHash: string;
+  totpSecret: string;
+  createdAt: string;
+  confirmed: boolean;
+  pendingInviteId?: string;
+  instanceIds?: string[];
+  activeInstanceId?: string | null;
+}
 
 // ─── CORS ────────────────────────────────────────────────────────────────────
 
@@ -47,7 +69,7 @@ function corsHeaders(origin: string | null, allowedOrigin: string): Record<strin
   return {
     'Access-Control-Allow-Origin': allowOrigin,
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Instance-Id',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',
   };
@@ -100,6 +122,38 @@ async function addUsername(kv: KVNamespace, username: string): Promise<void> {
 const userKey = (username: string, leaf: 'profile' | 'data:transactions' | 'data:income' | 'data:userCategories') =>
   `users:${username}:${leaf}`;
 
+const instanceKey = (instanceId: string, leaf: 'data:transactions' | 'data:income' | 'data:userCategories') =>
+  `instances:${instanceId}:${leaf}`;
+
+// ─── User profile helpers ─────────────────────────────────────────────────────
+
+async function getUserProfile(kv: KVNamespace, username: string): Promise<UserProfile> {
+  const raw = await kv.get(userKey(username, 'profile'));
+  if (!raw) throw new Error(`Profile not found for user: ${username}`);
+  return JSON.parse(raw) as UserProfile;
+}
+
+async function saveUserProfile(kv: KVNamespace, username: string, profile: UserProfile): Promise<void> {
+  await kv.put(userKey(username, 'profile'), JSON.stringify(profile));
+}
+
+// ─── Instance resolver middleware ─────────────────────────────────────────────
+
+async function resolveInstance(
+  request: Request,
+  auth: AuthContext,
+  env: Env,
+  cors: Record<string, string>,
+): Promise<{ instanceId: string } | Response> {
+  const instanceId = request.headers.get('X-Instance-Id');
+  if (!instanceId) return respond({ error: 'Missing instance.' }, 400, cors);
+  const raw = await env.FINANCE_KV.get(`instances:${instanceId}`);
+  if (!raw) return respond({ error: 'Instance not found.' }, 404, cors);
+  const inst = JSON.parse(raw) as Instance;
+  if (!inst.members.includes(auth.username)) return respond({ error: 'Forbidden.' }, 403, cors);
+  return { instanceId };
+}
+
 // ─── Timing-safe dummy hash (lazy, computed once per worker lifetime) ─────────
 
 let cachedDummyHash: Promise<string> | null = null;
@@ -113,22 +167,22 @@ type Transaction = { id: string; date: string; description: string; category: st
 type TaxBreakdown = { federal: number; state: number; socialSecurity: number; medicare: number; other: number };
 type IncomeEntry = { id: string; date: string; description: string; grossAmount: number; netAmount: number; taxes: TaxBreakdown; source: string };
 
-async function getTransactions(kv: KVNamespace, username: string): Promise<Transaction[]> {
-  const raw = await kv.get(userKey(username, 'data:transactions'));
+async function getTransactions(kv: KVNamespace, instanceId: string): Promise<Transaction[]> {
+  const raw = await kv.get(instanceKey(instanceId, 'data:transactions'));
   return raw ? (JSON.parse(raw) as Transaction[]) : [];
 }
 
-async function saveTransactions(kv: KVNamespace, username: string, txns: Transaction[]): Promise<void> {
-  await kv.put(userKey(username, 'data:transactions'), JSON.stringify(txns));
+async function saveTransactions(kv: KVNamespace, instanceId: string, txns: Transaction[]): Promise<void> {
+  await kv.put(instanceKey(instanceId, 'data:transactions'), JSON.stringify(txns));
 }
 
-async function getIncomeEntries(kv: KVNamespace, username: string): Promise<IncomeEntry[]> {
-  const raw = await kv.get(userKey(username, 'data:income'));
+async function getIncomeEntries(kv: KVNamespace, instanceId: string): Promise<IncomeEntry[]> {
+  const raw = await kv.get(instanceKey(instanceId, 'data:income'));
   return raw ? (JSON.parse(raw) as IncomeEntry[]) : [];
 }
 
-async function saveIncomeEntries(kv: KVNamespace, username: string, entries: IncomeEntry[]): Promise<void> {
-  await kv.put(userKey(username, 'data:income'), JSON.stringify(entries));
+async function saveIncomeEntries(kv: KVNamespace, instanceId: string, entries: IncomeEntry[]): Promise<void> {
+  await kv.put(instanceKey(instanceId, 'data:income'), JSON.stringify(entries));
 }
 
 function generateId(): string {
@@ -418,9 +472,134 @@ export default {
 
       const { username } = auth;
 
+      // ── Instance CRUD ──
+
+      // List instances the user is a member of
+      if (path === '/api/instances' && method === 'GET') {
+        const profile = await getUserProfile(env.FINANCE_KV, username);
+        const instances: Instance[] = [];
+        for (const id of profile.instanceIds ?? []) {
+          const raw = await env.FINANCE_KV.get(`instances:${id}`);
+          if (raw) instances.push(JSON.parse(raw) as Instance);
+        }
+        return respond({ instances, activeInstanceId: profile.activeInstanceId ?? null }, 200, cors);
+      }
+
+      // Create a new instance (the user becomes its owner)
+      if (path === '/api/instances' && method === 'POST') {
+        const body = await request.json() as { name?: string };
+        const name = (body.name ?? '').trim();
+        if (!name) return respond({ error: 'Name required.' }, 400, cors);
+        const id = crypto.randomUUID();
+        const instance: Instance = { id, name, owner: username, members: [username], createdAt: new Date().toISOString() };
+        await env.FINANCE_KV.put(`instances:${id}`, JSON.stringify(instance));
+        const profile = await getUserProfile(env.FINANCE_KV, username);
+        profile.instanceIds = [...(profile.instanceIds ?? []), id];
+        if (!profile.activeInstanceId) profile.activeInstanceId = id;
+        await saveUserProfile(env.FINANCE_KV, username, profile);
+        return respond(instance, 200, cors);
+      }
+
+      // Switch active instance
+      if (path === '/api/instances/active' && method === 'PUT') {
+        const body = await request.json() as { instanceId?: string };
+        const profile = await getUserProfile(env.FINANCE_KV, username);
+        if (!profile.instanceIds?.includes(body.instanceId ?? '')) return respond({ error: 'Not a member.' }, 403, cors);
+        profile.activeInstanceId = body.instanceId!;
+        await saveUserProfile(env.FINANCE_KV, username, profile);
+        return respond({ ok: true }, 200, cors);
+      }
+
+      {
+        let m: RegExpMatchArray | null;
+
+        // Rename instance
+        if ((m = path.match(/^\/api\/instances\/([^/]+)$/)) && method === 'PUT') {
+          const id = m[1];
+          const body = await request.json() as { name?: string };
+          const raw = await env.FINANCE_KV.get(`instances:${id}`);
+          if (!raw) return respond({ error: 'Not found.' }, 404, cors);
+          const inst = JSON.parse(raw) as Instance;
+          if (!inst.members.includes(username)) return respond({ error: 'Forbidden.' }, 403, cors);
+          if (body.name) inst.name = body.name.trim();
+          await env.FINANCE_KV.put(`instances:${id}`, JSON.stringify(inst));
+          return respond(inst, 200, cors);
+        }
+
+        // Delete instance (owner only; removes data too)
+        if ((m = path.match(/^\/api\/instances\/([^/]+)$/)) && method === 'DELETE') {
+          const id = m[1];
+          const raw = await env.FINANCE_KV.get(`instances:${id}`);
+          if (!raw) return respond({ error: 'Not found.' }, 404, cors);
+          const inst = JSON.parse(raw) as Instance;
+          if (inst.owner !== username) return respond({ error: 'Only the owner can delete.' }, 403, cors);
+          await Promise.all([
+            env.FINANCE_KV.delete(`instances:${id}`),
+            env.FINANCE_KV.delete(`instances:${id}:data:transactions`),
+            env.FINANCE_KV.delete(`instances:${id}:data:income`),
+            env.FINANCE_KV.delete(`instances:${id}:data:userCategories`),
+          ]);
+          // Remove from every member's profile
+          for (const memberUsername of inst.members) {
+            const p = await getUserProfile(env.FINANCE_KV, memberUsername);
+            p.instanceIds = (p.instanceIds ?? []).filter((x) => x !== id);
+            if (p.activeInstanceId === id) p.activeInstanceId = p.instanceIds[0] ?? null;
+            await saveUserProfile(env.FINANCE_KV, memberUsername, p);
+          }
+          return respond({ ok: true }, 200, cors);
+        }
+
+        // Add member (owner only)
+        if ((m = path.match(/^\/api\/instances\/([^/]+)\/members$/)) && method === 'POST') {
+          const id = m[1];
+          const body = await request.json() as { username?: string };
+          const addMember = (body.username ?? '').trim().toLowerCase();
+          const raw = await env.FINANCE_KV.get(`instances:${id}`);
+          if (!raw) return respond({ error: 'Not found.' }, 404, cors);
+          const inst = JSON.parse(raw) as Instance;
+          if (inst.owner !== username) return respond({ error: 'Only the owner can share.' }, 403, cors);
+          const known = await getUsernames(env.FINANCE_KV);
+          if (!known.includes(addMember)) return respond({ error: 'Unknown user.' }, 400, cors);
+          if (!inst.members.includes(addMember)) {
+            inst.members.push(addMember);
+            await env.FINANCE_KV.put(`instances:${id}`, JSON.stringify(inst));
+            const memberProfile = await getUserProfile(env.FINANCE_KV, addMember);
+            memberProfile.instanceIds = [...(memberProfile.instanceIds ?? []), id];
+            if (!memberProfile.activeInstanceId) memberProfile.activeInstanceId = id;
+            await saveUserProfile(env.FINANCE_KV, addMember, memberProfile);
+          }
+          return respond(inst, 200, cors);
+        }
+
+        // Remove member (owner only)
+        if ((m = path.match(/^\/api\/instances\/([^/]+)\/members\/([^/]+)$/)) && method === 'DELETE') {
+          const id = m[1];
+          const memberToRemove = m[2].toLowerCase();
+          const raw = await env.FINANCE_KV.get(`instances:${id}`);
+          if (!raw) return respond({ error: 'Not found.' }, 404, cors);
+          const inst = JSON.parse(raw) as Instance;
+          if (inst.owner !== username) return respond({ error: 'Only the owner can modify members.' }, 403, cors);
+          if (inst.owner === memberToRemove) return respond({ error: 'Cannot remove the owner.' }, 400, cors);
+          inst.members = inst.members.filter((u) => u !== memberToRemove);
+          await env.FINANCE_KV.put(`instances:${id}`, JSON.stringify(inst));
+          const p = await getUserProfile(env.FINANCE_KV, memberToRemove);
+          p.instanceIds = (p.instanceIds ?? []).filter((x) => x !== id);
+          if (p.activeInstanceId === id) p.activeInstanceId = p.instanceIds[0] ?? null;
+          await saveUserProfile(env.FINANCE_KV, memberToRemove, p);
+          return respond(inst, 200, cors);
+        }
+      }
+
+      // ─────────────────────────────────────────────────────────────────────
+      // Data endpoints — require valid JWT + X-Instance-Id membership check
+      // ─────────────────────────────────────────────────────────────────────
+      const resolved = await resolveInstance(request, auth, env, cors);
+      if (resolved instanceof Response) return resolved;
+      const { instanceId } = resolved;
+
       // ── GET transactions ──
       if (path === '/api/transactions' && method === 'GET') {
-        const txns = await getTransactions(env.FINANCE_KV, username);
+        const txns = await getTransactions(env.FINANCE_KV, instanceId);
         return respond(txns, 200, cors);
       }
 
@@ -431,7 +610,7 @@ export default {
           return respond({ error: 'No transactions provided.' }, 400, cors);
         }
 
-        const existing = await getTransactions(env.FINANCE_KV, username);
+        const existing = await getTransactions(env.FINANCE_KV, instanceId);
 
         // Dedup: match on date + normalized description + rounded amount
         // against existing rows + previously-accepted rows in this same batch.
@@ -457,7 +636,7 @@ export default {
         }
 
         if (added.length > 0) {
-          await saveTransactions(env.FINANCE_KV, username, [...existing, ...added]);
+          await saveTransactions(env.FINANCE_KV, instanceId, [...existing, ...added]);
         }
         return respond({ added: added.length, skipped }, 200, cors);
       }
@@ -466,10 +645,10 @@ export default {
       const txnDeleteMatch = path.match(/^\/api\/transactions\/([^/]+)$/);
       if (txnDeleteMatch && method === 'DELETE') {
         const id = txnDeleteMatch[1];
-        const txns = await getTransactions(env.FINANCE_KV, username);
+        const txns = await getTransactions(env.FINANCE_KV, instanceId);
         const next = txns.filter((t) => t.id !== id);
         if (next.length === txns.length) return respond({ error: 'Transaction not found.' }, 404, cors);
-        await saveTransactions(env.FINANCE_KV, username, next);
+        await saveTransactions(env.FINANCE_KV, instanceId, next);
         return respond({ ok: true }, 200, cors);
       }
 
@@ -483,7 +662,7 @@ export default {
           category?: string;
           amount?: number;
         };
-        const txns = await getTransactions(env.FINANCE_KV, username);
+        const txns = await getTransactions(env.FINANCE_KV, instanceId);
         const idx = txns.findIndex((t) => t.id === id);
         if (idx < 0) return respond({ error: 'Transaction not found.' }, 404, cors);
 
@@ -497,13 +676,13 @@ export default {
         };
         const next = [...txns];
         next[idx] = updated;
-        await saveTransactions(env.FINANCE_KV, username, next);
+        await saveTransactions(env.FINANCE_KV, instanceId, next);
         return respond(updated, 200, cors);
       }
 
       // ── GET income ──
       if (path === '/api/income' && method === 'GET') {
-        const entries = await getIncomeEntries(env.FINANCE_KV, username);
+        const entries = await getIncomeEntries(env.FINANCE_KV, instanceId);
         return respond(entries, 200, cors);
       }
 
@@ -515,7 +694,7 @@ export default {
         if (!body.entry) return respond({ error: 'No entry provided.' }, 400, cors);
 
         const { allowDuplicate, ...rawEntry } = body.entry;
-        const existing = await getIncomeEntries(env.FINANCE_KV, username);
+        const existing = await getIncomeEntries(env.FINANCE_KV, instanceId);
 
         // Dedup against existing income entries on date + description + netAmount
         // unless the caller explicitly opted to allow a duplicate.
@@ -528,7 +707,7 @@ export default {
         }
 
         const entry: IncomeEntry = { ...rawEntry, id: generateId() };
-        await saveIncomeEntries(env.FINANCE_KV, username, [...existing, entry]);
+        await saveIncomeEntries(env.FINANCE_KV, instanceId, [...existing, entry]);
 
         // Auto-create tax transactions from income entry. These also go
         // through the transaction dedup logic so we don't double-insert if
@@ -537,7 +716,7 @@ export default {
         const totalTax = (taxes.federal ?? 0) + (taxes.state ?? 0) + (taxes.socialSecurity ?? 0) + (taxes.medicare ?? 0) + (taxes.other ?? 0);
 
         if (totalTax > 0) {
-          const taxTxns = await getTransactions(env.FINANCE_KV, username);
+          const taxTxns = await getTransactions(env.FINANCE_KV, instanceId);
           const seenTxnKeys = new Set(taxTxns.map(transactionKey));
           const taxEntries: Transaction[] = [];
 
@@ -570,7 +749,7 @@ export default {
           }
 
           if (taxEntries.length > 0) {
-            await saveTransactions(env.FINANCE_KV, username, [...taxTxns, ...taxEntries]);
+            await saveTransactions(env.FINANCE_KV, instanceId, [...taxTxns, ...taxEntries]);
           }
         }
 
@@ -581,10 +760,10 @@ export default {
       const incDeleteMatch = path.match(/^\/api\/income\/([^/]+)$/);
       if (incDeleteMatch && method === 'DELETE') {
         const id = incDeleteMatch[1];
-        const entries = await getIncomeEntries(env.FINANCE_KV, username);
+        const entries = await getIncomeEntries(env.FINANCE_KV, instanceId);
         const next = entries.filter((e) => e.id !== id);
         if (next.length === entries.length) return respond({ error: 'Income entry not found.' }, 404, cors);
-        await saveIncomeEntries(env.FINANCE_KV, username, next);
+        await saveIncomeEntries(env.FINANCE_KV, instanceId, next);
         return respond({ ok: true }, 200, cors);
       }
 
@@ -598,7 +777,7 @@ export default {
           grossAmount?: number;
           netAmount?: number;
         };
-        const entries = await getIncomeEntries(env.FINANCE_KV, username);
+        const entries = await getIncomeEntries(env.FINANCE_KV, instanceId);
         const idx = entries.findIndex((e) => e.id === id);
         if (idx < 0) return respond({ error: 'Income entry not found.' }, 404, cors);
 
@@ -612,13 +791,13 @@ export default {
         };
         const next = [...entries];
         next[idx] = updated;
-        await saveIncomeEntries(env.FINANCE_KV, username, next);
+        await saveIncomeEntries(env.FINANCE_KV, instanceId, next);
         return respond(updated, 200, cors);
       }
 
       // ── GET user categories (custom categories + description mappings) ──
       if (path === '/api/user-categories' && method === 'GET') {
-        const raw = await env.FINANCE_KV.get(userKey(username, 'data:userCategories'));
+        const raw = await env.FINANCE_KV.get(instanceKey(instanceId, 'data:userCategories'));
         const data = raw ? JSON.parse(raw) : { customCategories: [], mappings: [] };
         return respond(data, 200, cors);
       }
@@ -640,7 +819,7 @@ export default {
             )
           : [];
         await env.FINANCE_KV.put(
-          userKey(username, 'data:userCategories'),
+          instanceKey(instanceId, 'data:userCategories'),
           JSON.stringify({ customCategories, mappings }),
         );
         return respond({ ok: true }, 200, cors);
@@ -656,20 +835,20 @@ export default {
         let deletedIncome = 0;
 
         if (txnIds.size > 0) {
-          const existing = await getTransactions(env.FINANCE_KV, username);
+          const existing = await getTransactions(env.FINANCE_KV, instanceId);
           const next = existing.filter((t) => !txnIds.has(t.id));
           deletedTransactions = existing.length - next.length;
           if (deletedTransactions > 0) {
-            await saveTransactions(env.FINANCE_KV, username, next);
+            await saveTransactions(env.FINANCE_KV, instanceId, next);
           }
         }
 
         if (incIds.size > 0) {
-          const existing = await getIncomeEntries(env.FINANCE_KV, username);
+          const existing = await getIncomeEntries(env.FINANCE_KV, instanceId);
           const next = existing.filter((e) => !incIds.has(e.id));
           deletedIncome = existing.length - next.length;
           if (deletedIncome > 0) {
-            await saveIncomeEntries(env.FINANCE_KV, username, next);
+            await saveIncomeEntries(env.FINANCE_KV, instanceId, next);
           }
         }
 
@@ -682,8 +861,8 @@ export default {
         if (body.confirm !== true) {
           return respond({ error: 'Confirmation required.' }, 400, cors);
         }
-        await env.FINANCE_KV.delete(userKey(username, 'data:transactions'));
-        await env.FINANCE_KV.delete(userKey(username, 'data:income'));
+        await env.FINANCE_KV.delete(instanceKey(instanceId, 'data:transactions'));
+        await env.FINANCE_KV.delete(instanceKey(instanceId, 'data:income'));
         return respond({ ok: true }, 200, cors);
       }
 
@@ -696,7 +875,7 @@ export default {
         if (from === to) return respond({ updated: 0 }, 200, cors);
 
         // Update transactions
-        const txns = await getTransactions(env.FINANCE_KV, username);
+        const txns = await getTransactions(env.FINANCE_KV, instanceId);
         let txnUpdates = 0;
         const nextTxns = txns.map((t) => {
           if (t.category === from) {
@@ -705,10 +884,10 @@ export default {
           }
           return t;
         });
-        if (txnUpdates > 0) await saveTransactions(env.FINANCE_KV, username, nextTxns);
+        if (txnUpdates > 0) await saveTransactions(env.FINANCE_KV, instanceId, nextTxns);
 
         // Update user categories document
-        const raw = await env.FINANCE_KV.get(userKey(username, 'data:userCategories'));
+        const raw = await env.FINANCE_KV.get(instanceKey(instanceId, 'data:userCategories'));
         const userCats = raw ? JSON.parse(raw) as { customCategories: string[]; mappings: Array<{ pattern: string; category: string }> } : { customCategories: [], mappings: [] };
 
         // Rename in customCategories list (if the old name was a custom one)
@@ -730,7 +909,7 @@ export default {
           return m;
         });
 
-        await env.FINANCE_KV.put(userKey(username, 'data:userCategories'), JSON.stringify(userCats));
+        await env.FINANCE_KV.put(instanceKey(instanceId, 'data:userCategories'), JSON.stringify(userCats));
 
         return respond({ updated: txnUpdates, mappingsUpdated: mappingUpdates }, 200, cors);
       }
@@ -743,7 +922,7 @@ export default {
         if (!name) return respond({ error: 'Missing category name.' }, 400, cors);
 
         // Reassign transactions
-        const txns = await getTransactions(env.FINANCE_KV, username);
+        const txns = await getTransactions(env.FINANCE_KV, instanceId);
         let txnUpdates = 0;
         const nextTxns = txns.map((t) => {
           if (t.category === name) {
@@ -752,16 +931,16 @@ export default {
           }
           return t;
         });
-        if (txnUpdates > 0) await saveTransactions(env.FINANCE_KV, username, nextTxns);
+        if (txnUpdates > 0) await saveTransactions(env.FINANCE_KV, instanceId, nextTxns);
 
         // Remove from custom list + drop any mappings that pointed at this category
-        const raw = await env.FINANCE_KV.get(userKey(username, 'data:userCategories'));
+        const raw = await env.FINANCE_KV.get(instanceKey(instanceId, 'data:userCategories'));
         const userCats = raw ? JSON.parse(raw) as { customCategories: string[]; mappings: Array<{ pattern: string; category: string }> } : { customCategories: [], mappings: [] };
         userCats.customCategories = userCats.customCategories.filter((c) => c !== name);
         const mappingsBefore = userCats.mappings.length;
         userCats.mappings = userCats.mappings.filter((m) => m.category !== name);
         const mappingsRemoved = mappingsBefore - userCats.mappings.length;
-        await env.FINANCE_KV.put(userKey(username, 'data:userCategories'), JSON.stringify(userCats));
+        await env.FINANCE_KV.put(instanceKey(instanceId, 'data:userCategories'), JSON.stringify(userCats));
 
         return respond({ reassigned: txnUpdates, mappingsRemoved }, 200, cors);
       }

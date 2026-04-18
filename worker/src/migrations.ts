@@ -6,7 +6,7 @@ const userDataKey = (username: string, leaf: string) => `users:${username}:${lea
 export async function migrateSingleUserToMultiTenant(
   kv: KVNamespace,
   username: string,
-): Promise<{ moved: number }> {
+): Promise<{ moved: number; instanceId: string }> {
   const legacyAuthKeys = ['auth:passwordHash', 'auth:totpSecret'] as const;
   const legacyDataKeys = ['data:transactions', 'data:income', 'data:userCategories'] as const;
   let moved = 0;
@@ -14,22 +14,37 @@ export async function migrateSingleUserToMultiTenant(
   const [hashVal, totpVal] = await Promise.all(legacyAuthKeys.map((k) => kv.get(k)));
   if (!hashVal || !totpVal) throw new Error('Legacy auth data missing; cannot migrate.');
 
+  // Create the default instance
+  const instanceId = crypto.randomUUID();
+  const instance = {
+    id: instanceId,
+    name: 'My Finances',
+    owner: username,
+    members: [username],
+    createdAt: new Date().toISOString(),
+  };
+  await kv.put(`instances:${instanceId}`, JSON.stringify(instance));
+
+  // Move legacy data keys into instance-scoped keys
+  for (const leaf of legacyDataKeys) {
+    const val = await kv.get(leaf);
+    if (val) {
+      await kv.put(`instances:${instanceId}:${leaf}`, val);
+      moved++;
+    }
+  }
+
+  // Write the user profile with instance membership
   const profile = {
     passwordHash: hashVal,
     totpSecret: totpVal,
     createdAt: new Date().toISOString(),
     confirmed: true,
+    instanceIds: [instanceId],
+    activeInstanceId: instanceId,
   };
   await kv.put(profileKey(username), JSON.stringify(profile));
   moved++;
-
-  for (const leaf of legacyDataKeys) {
-    const val = await kv.get(leaf);
-    if (val) {
-      await kv.put(userDataKey(username, leaf), val);
-      moved++;
-    }
-  }
 
   const existingUsernames = JSON.parse((await kv.get('meta:usernames')) ?? '[]') as string[];
   if (!existingUsernames.includes(username)) {
@@ -46,5 +61,6 @@ export async function migrateSingleUserToMultiTenant(
     ...legacyDataKeys.map((k) => kv.delete(k)),
   ]);
 
-  return { moved };
+  return { moved, instanceId };
 }
+
