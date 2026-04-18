@@ -23,7 +23,7 @@ const TIME_RANGE_LABELS: Record<TimeRange, string> = {
   week: 'Past Week',
   month: 'Past Month',
   '3month': 'Past 3 Months',
-  year: 'Past 12 Months',
+  year: 'Past 1 Year',
   all: 'All Time',
 };
 

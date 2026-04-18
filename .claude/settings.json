@@ -4,7 +4,28 @@
       "Bash(npx tsc:*)",
       "Bash(npm run:*)",
       "Bash(cat)",
-      "Bash(npx tsx:*)"
+      "Bash(npx tsx:*)",
+      "Bash(rsvg-convert --version)",
+      "Bash(magick -background white /tmp/lotus-test.svg /tmp/lotus-test.png)",
+      "Bash(magick /tmp/lotus-sizes.svg /tmp/lotus-sizes.png)",
+      "Bash(magick -background white /tmp/lotus_clean.svg /tmp/lotus_clean.png)",
+      "Bash(dnf list *)",
+      "Bash(magick -background \"#09090b\" /var/home/Grey/Projects/Finastic/frontend/public/favicon.svg -resize 32x32 /tmp/fav32.png)",
+      "Bash(magick -background \"#09090b\" /var/home/Grey/Projects/Finastic/frontend/public/favicon.svg -resize 16x16 /tmp/fav16.png)",
+      "Bash(magick /tmp/fav32.png /tmp/fav16.png -background \"#18181b\" -gravity center -splice 8x8 -append /tmp/favs.png)",
+      "Bash(magick -background \"#09090b\" /var/home/Grey/Projects/Finastic/frontend/public/favicon.svg -resize 256x /tmp/fav-large.png)",
+      "Bash(magick -background \"#09090b\" /var/home/Grey/Projects/Finastic/frontend/public/favicon.svg -resize 32x /tmp/fav-32.png)",
+      "Bash(magick /tmp/fav-32.png -filter point -resize 256x /tmp/fav-32-up.png)",
+      "Read(//var/home/Grey/.claude/plugins/cache/**)",
+      "Read(//var/home/Grey/.claude/plugins/**)",
+      "Bash(git checkout *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git reset *)"
+    ],
+    "additionalDirectories": [
+      "/tmp",
+      "/var/home/Grey/Projects/Lotus/docs/superpowers"
     ]
   }
 }
