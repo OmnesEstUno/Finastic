@@ -312,11 +312,6 @@ export function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
 }
 
-export function getYearsSorted(transactions: Transaction[]): number[] {
-  const years = new Set(transactions.map((t) => parseISO(t.date).getFullYear()));
-  return [...years].sort((a, b) => b - a);
-}
-
 export function getMaxValue(data: LineChartPoint[], activeCategories: Set<Category>): number {
   let max = 0;
   for (const point of data) {
