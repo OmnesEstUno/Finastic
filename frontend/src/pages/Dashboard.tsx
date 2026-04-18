@@ -37,6 +37,7 @@ import { getCategoryColor } from '../utils/categories';
 import CategoryLineChart, { TIME_RANGE_LABELS } from '../components/charts/CategoryLineChart';
 import CategorySelect, { NEW_CATEGORY_SENTINEL } from '../components/CategorySelect';
 import Toast from '../components/Toast';
+import EmptyState from '../components/EmptyState';
 import { useUserCategories } from '../hooks/useUserCategories';
 import Layout from '../components/layout/Layout';
 import {
@@ -464,34 +465,6 @@ export default function Dashboard() {
         />
       )}
     </Layout>
-  );
-}
-
-function EmptyState({ message }: { message: string }) {
-  return (
-    <div
-      style={{
-        padding: '48px 24px',
-        textAlign: 'center',
-        color: 'var(--text-muted)',
-        fontSize: '0.875rem',
-      }}
-    >
-      <svg
-        width="40"
-        height="40"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        style={{ margin: '0 auto 12px', opacity: 0.4 }}
-      >
-        <rect x="3" y="3" width="18" height="18" rx="2" />
-        <path d="M3 9h18" />
-        <path d="M9 21V9" />
-      </svg>
-      <p>{message}</p>
-    </div>
   );
 }
 
