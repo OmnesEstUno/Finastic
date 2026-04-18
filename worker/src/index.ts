@@ -47,6 +47,14 @@ function respond(body: unknown, status: number, headers: Record<string, string>)
 
 // ─── Crypto: PBKDF2 password hashing ─────────────────────────────────────────
 
+function bytesToHex(u8: Uint8Array): string {
+  return [...u8].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+function hexToBytes(hex: string): Uint8Array {
+  return new Uint8Array((hex.match(/.{2}/g) ?? []).map((h) => parseInt(h, 16)));
+}
+
 async function hashPassword(password: string): Promise<string> {
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
@@ -55,23 +63,21 @@ async function hashPassword(password: string): Promise<string> {
     key,
     256,
   );
-  const toHex = (u8: Uint8Array) => [...u8].map((b) => b.toString(16).padStart(2, '0')).join('');
-  return `pbkdf2:${toHex(salt)}:${toHex(new Uint8Array(bits))}`;
+  return `pbkdf2:${bytesToHex(salt)}:${bytesToHex(new Uint8Array(bits))}`;
 }
 
 async function verifyPassword(password: string, stored: string): Promise<boolean> {
   const parts = stored.split(':');
   if (parts.length !== 3 || parts[0] !== 'pbkdf2') return false;
   const [, saltHex, storedHashHex] = parts;
-  const fromHex = (hex: string) => new Uint8Array((hex.match(/.{2}/g) ?? []).map((h) => parseInt(h, 16)));
-  const salt = fromHex(saltHex);
+  const salt = hexToBytes(saltHex);
   const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
   const bits = await crypto.subtle.deriveBits(
     { name: 'PBKDF2', salt, iterations: 120_000, hash: 'SHA-256' },
     key,
     256,
   );
-  const newHashHex = [...new Uint8Array(bits)].map((b) => b.toString(16).padStart(2, '0')).join('');
+  const newHashHex = bytesToHex(new Uint8Array(bits));
   // Constant-time comparison
   if (newHashHex.length !== storedHashHex.length) return false;
   let diff = 0;
