@@ -86,15 +86,19 @@ export async function markInviteUsed(kv: KVNamespace, id: string, username: stri
   return true;
 }
 
-export async function listInvites(kv: KVNamespace): Promise<Array<{ id: string; expiresAt: number; createdAt: number; usedBy: string | null }>> {
+export async function listInvites(kv: KVNamespace, jwtSecret: string): Promise<Array<{ id: string; expiresAt: number; createdAt: number; usedBy: string | null; token: string }>> {
   const list = await kv.list({ prefix: 'invites:' });
+  const inviteKey = await getInviteSigningKeyCached(jwtSecret);
   const reads = await Promise.all(list.keys.map(async (k) => {
     const raw = await kv.get(k.name);
     if (!raw) return null;
     const r = JSON.parse(raw) as InviteRecord;
-    return { id: k.name.slice('invites:'.length), ...r };
+    const id = k.name.slice('invites:'.length);
+    const sig = await hmacSign(id, inviteKey);
+    const token = b64urlEncodeStr(`${id}:${sig}`);
+    return { id, ...r, token };
   }));
-  return reads.filter((x): x is { id: string; expiresAt: number; createdAt: number; usedBy: string | null } => x !== null);
+  return reads.filter((x): x is { id: string; expiresAt: number; createdAt: number; usedBy: string | null; token: string } => x !== null);
 }
 
 export async function deleteInvite(kv: KVNamespace, id: string): Promise<void> {

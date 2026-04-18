@@ -11,6 +11,7 @@ import {
   isAuthenticated,
 } from '../api/client';
 import Logo from '../components/Logo';
+import PasswordInput from '../components/PasswordInput';
 
 type Step =
   | 'loading'
@@ -20,6 +21,20 @@ type Step =
   | 'setup-confirm'
   | 'login-password'
   | 'login-totp';
+
+// Shared back-button style used on every step that has one
+const backButtonStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 4,
+  background: 'none',
+  border: 'none',
+  cursor: 'pointer',
+  color: 'var(--text-muted)',
+  fontSize: '0.8125rem',
+  padding: '4px 0',
+  marginBottom: 8,
+};
 
 export default function Login() {
   const navigate = useNavigate();
@@ -64,6 +79,14 @@ export default function Login() {
         setStep('login-password');
       });
   }, [navigate]);
+
+  // ── Back button helper ──
+
+  function goBack(target: Step, resetFields?: () => void) {
+    setError('');
+    resetFields?.();
+    setStep(target);
+  }
 
   // ── Migration: claim existing data under a new username ──
 
@@ -204,6 +227,44 @@ export default function Login() {
   return (
     <div className="login-page">
       <div className="login-card">
+        {/* Back button — shown above the brand block for steps that need it */}
+        {step === 'login-totp' && (
+          <button
+            type="button"
+            style={backButtonStyle}
+            onClick={() => goBack('login-password', () => setTotpCode(''))}
+          >
+            ← Back
+          </button>
+        )}
+        {step === 'setup-totp' && (
+          <button
+            type="button"
+            style={backButtonStyle}
+            onClick={() => goBack('setup-password', () => setTotpCode(''))}
+          >
+            ← Back
+          </button>
+        )}
+        {step === 'setup-confirm' && (
+          <button
+            type="button"
+            style={backButtonStyle}
+            onClick={() => goBack('setup-totp', () => setTotpCode(''))}
+          >
+            ← Back
+          </button>
+        )}
+        {step === 'migrate' && (
+          <button
+            type="button"
+            style={backButtonStyle}
+            onClick={() => goBack('login-password', () => { setUsername(''); setPassword(''); })}
+          >
+            ← Back
+          </button>
+        )}
+
         {/* Brand */}
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <Logo size={56} color="var(--accent)" style={{ margin: '0 auto 12px' }} />
@@ -264,9 +325,7 @@ export default function Login() {
             </div>
             <div className="form-group">
               <label className="form-label">Existing password</label>
-              <input
-                type="password"
-                className="input"
+              <PasswordInput
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Your current password"
@@ -316,21 +375,18 @@ export default function Login() {
             </div>
             <div className="form-group">
               <label className="form-label">Password</label>
-              <input
-                type="password"
-                className="input"
+              <PasswordInput
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Min. 8 characters"
                 autoComplete="new-password"
                 required
+                minLength={8}
               />
             </div>
             <div className="form-group">
               <label className="form-label">Confirm password</label>
-              <input
-                type="password"
-                className="input"
+              <PasswordInput
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="Re-enter your password"
@@ -340,6 +396,13 @@ export default function Login() {
             </div>
             <button type="submit" className="btn btn-primary btn-lg w-full" disabled={loading}>
               {loading ? <span className="spinner" /> : 'Continue'}
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost w-full"
+              onClick={() => goBack('login-password')}
+            >
+              Back to log in
             </button>
           </form>
         )}
@@ -431,9 +494,7 @@ export default function Login() {
             </div>
             <div className="form-group">
               <label className="form-label">Password</label>
-              <input
-                type="password"
-                className="input"
+              <PasswordInput
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter your password"
@@ -476,13 +537,6 @@ export default function Login() {
             </div>
             <button type="submit" className="btn btn-primary btn-lg w-full" disabled={loading}>
               {loading ? <span className="spinner" /> : 'Verify'}
-            </button>
-            <button
-              type="button"
-              className="btn btn-ghost w-full"
-              onClick={() => { setStep('login-password'); setTotpCode(''); setError(''); }}
-            >
-              Back
             </button>
             <button
               type="button"

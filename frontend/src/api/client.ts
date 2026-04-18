@@ -254,6 +254,7 @@ export interface InviteSummary {
   expiresAt: number;
   createdAt: number;
   usedBy: string | null;
+  token: string;
 }
 
 export async function createInvite(): Promise<{ id: string; token: string; expiresAt: number }> {

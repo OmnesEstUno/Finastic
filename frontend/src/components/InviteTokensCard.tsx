@@ -2,16 +2,49 @@ import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 import { createInvite, listInvites, deleteInvite, InviteSummary } from '../api/client';
 
+// Pre-compute QR data URLs for all active invites (eager, ~fast).
+async function buildQrMap(invites: InviteSummary[]): Promise<Map<string, string>> {
+  const entries = await Promise.all(
+    invites.map(async (inv) => {
+      const url = `${window.location.origin}${window.location.pathname}#/signup?token=${encodeURIComponent(inv.token)}`;
+      const dataUrl = await QRCode.toDataURL(url, { width: 256, margin: 1 });
+      return [inv.id, dataUrl] as const;
+    }),
+  );
+  return new Map(entries);
+}
+
+// Chevron icons
+function ChevronDown() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  );
+}
+function ChevronRight() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="9 18 15 12 9 6" />
+    </svg>
+  );
+}
+
 export default function InviteTokensCard() {
   const [invites, setInvites] = useState<InviteSummary[]>([]);
-  const [newestToken, setNewestToken] = useState<{ id: string; token: string; expiresAt: number; qrDataUrl: string } | null>(null);
+  const [qrMap, setQrMap] = useState<Map<string, string>>(new Map());
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  async function refresh() {
+  async function refresh(autoExpandId?: string) {
     try {
       const r = await listInvites();
-      setInvites(r.invites.sort((a, b) => b.createdAt - a.createdAt));
+      const sorted = r.invites.sort((a, b) => b.createdAt - a.createdAt);
+      setInvites(sorted);
+      const map = await buildQrMap(sorted);
+      setQrMap(map);
+      if (autoExpandId) setExpandedId(autoExpandId);
     } catch (err) {
       setError((err as Error).message);
     }
@@ -23,10 +56,7 @@ export default function InviteTokensCard() {
     setLoading(true); setError('');
     try {
       const created = await createInvite();
-      const url = `${window.location.origin}${window.location.pathname}#/signup?token=${encodeURIComponent(created.token)}`;
-      const qrDataUrl = await QRCode.toDataURL(url, { width: 256, margin: 1 });
-      setNewestToken({ ...created, qrDataUrl });
-      await refresh();
+      await refresh(created.id);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -38,9 +68,13 @@ export default function InviteTokensCard() {
     if (!confirm('Revoke this invite?')) return;
     try {
       await deleteInvite(id);
-      if (newestToken?.id === id) setNewestToken(null);
+      if (expandedId === id) setExpandedId(null);
       await refresh();
     } catch (err) { setError((err as Error).message); }
+  }
+
+  function toggleExpand(id: string) {
+    setExpandedId((prev) => (prev === id ? null : id));
   }
 
   return (
@@ -51,32 +85,90 @@ export default function InviteTokensCard() {
       </button>
       {error && <p style={{ color: 'var(--error)' }}>{error}</p>}
 
-      {newestToken && (
-        <div style={{ marginTop: 16, padding: 12, background: 'var(--bg-elevated)', borderRadius: 8 }}>
-          <p style={{ margin: 0, fontWeight: 600 }}>New invite (save or share now):</p>
-          <img src={newestToken.qrDataUrl} alt="Invite QR" style={{ marginTop: 8 }} />
-          <p style={{ marginTop: 8, fontFamily: 'monospace', wordBreak: 'break-all', fontSize: '0.85rem' }}>
-            {newestToken.token}
-          </p>
-          <button
-            onClick={() => navigator.clipboard.writeText(newestToken.token)}
-            className="btn btn-ghost"
-          >Copy token</button>
-        </div>
-      )}
-
       <h3 style={{ marginTop: 24 }}>Active invites</h3>
       {invites.length === 0 && <p style={{ color: 'var(--text-muted)' }}>No active invites.</p>}
-      <ul style={{ listStyle: 'none', padding: 0 }}>
-        {invites.map((inv) => (
-          <li key={inv.id} style={{ padding: 8, borderBottom: '1px solid var(--border)' }}>
-            <span style={{ fontFamily: 'monospace' }}>{inv.id.slice(0, 8)}…</span>
-            {' — expires '}
-            {new Date(inv.expiresAt * 1000).toLocaleDateString()}
-            {inv.usedBy && <span style={{ color: 'var(--success)', marginLeft: 8 }}>claimed by {inv.usedBy}</span>}
-            <button onClick={() => handleRevoke(inv.id)} style={{ marginLeft: 12 }} className="btn btn-ghost">Revoke</button>
-          </li>
-        ))}
+      <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+        {invites.map((inv) => {
+          const isExpanded = expandedId === inv.id;
+          const qrDataUrl = qrMap.get(inv.id);
+
+          return (
+            <li key={inv.id} style={{ borderBottom: '1px solid var(--border)' }}>
+              {/* Collapsed header — always visible */}
+              <button
+                type="button"
+                onClick={() => toggleExpand(inv.id)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  width: '100%',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: '10px 0',
+                  textAlign: 'left',
+                  color: 'var(--text-primary)',
+                }}
+              >
+                <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>
+                  {isExpanded ? <ChevronDown /> : <ChevronRight />}
+                </span>
+                <span style={{ fontFamily: 'monospace', fontSize: '0.875rem' }}>
+                  {inv.id.slice(0, 8)}…
+                </span>
+                <span style={{ color: 'var(--text-muted)', fontSize: '0.8125rem', flex: 1 }}>
+                  expires {new Date(inv.expiresAt * 1000).toLocaleDateString()}
+                </span>
+                {inv.usedBy && (
+                  <span style={{ color: 'var(--success)', fontSize: '0.8125rem', flexShrink: 0 }}>
+                    claimed by {inv.usedBy}
+                  </span>
+                )}
+              </button>
+
+              {/* Expanded body */}
+              {isExpanded && (
+                <div style={{ paddingBottom: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {qrDataUrl && (
+                    <div style={{ display: 'flex', justifyContent: 'center' }}>
+                      <img src={qrDataUrl} alt="Invite QR code" style={{ borderRadius: 8 }} />
+                    </div>
+                  )}
+                  <div
+                    style={{
+                      background: 'var(--bg-elevated)',
+                      borderRadius: 8,
+                      padding: '10px 14px',
+                      fontFamily: 'monospace',
+                      fontSize: '0.8rem',
+                      wordBreak: 'break-all',
+                      color: 'var(--text-secondary)',
+                    }}
+                  >
+                    {inv.token}
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => navigator.clipboard.writeText(inv.token)}
+                    >
+                      Copy token
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-danger btn-sm"
+                      onClick={() => handleRevoke(inv.id)}
+                    >
+                      Revoke
+                    </button>
+                  </div>
+                </div>
+              )}
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

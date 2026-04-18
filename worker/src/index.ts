@@ -222,7 +222,7 @@ export default {
       if (path === '/api/admin/invites' && method === 'GET') {
         const auth = await authenticateAdmin(request, env, cors);
         if (auth instanceof Response) return auth;
-        const invites = await listInvites(env.FINANCE_KV);
+        const invites = await listInvites(env.FINANCE_KV, env.JWT_SECRET);
         return respond({ invites }, 200, cors);
       }
 
