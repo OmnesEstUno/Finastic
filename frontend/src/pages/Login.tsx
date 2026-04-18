@@ -43,10 +43,12 @@ export default function Login() {
     const hash = window.location.hash;
     const match = hash.match(/[?&]token=([^&]+)/);
     if (match) {
-      setInviteToken(decodeURIComponent(match[1]));
+      let decoded: string;
+      try { decoded = decodeURIComponent(match[1]); } catch { /* malformed token — fall through to normal flow */ return; }
+      setInviteToken(decoded);
       setStep('setup-password');
-      // Clear the hash so the token isn't sitting in the URL bar
-      history.replaceState(null, '', window.location.pathname + window.location.search);
+      // Clear the token from the URL bar but keep the router on a valid route
+      history.replaceState(null, '', window.location.pathname + window.location.search + '#/signup');
       return;
     }
     getSetupStatus()

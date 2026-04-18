@@ -176,12 +176,17 @@ export default {
       if (path === '/api/admin/init' && method === 'POST') {
         const adminSecret = env.ADMIN_INIT_SECRET ?? '';
         const provided = request.headers.get('X-Admin-Secret') ?? '';
-        // constant-time-ish compare
-        if (!adminSecret || provided.length !== adminSecret.length) {
+        if (!adminSecret) {
           return respond({ error: 'Unauthorized' }, 401, cors);
         }
-        let mismatch = 0;
-        for (let i = 0; i < adminSecret.length; i++) mismatch |= provided.charCodeAt(i) ^ adminSecret.charCodeAt(i);
+        // Constant-time compare over padded strings — no length-leak via early return.
+        const maxLen = Math.max(provided.length, adminSecret.length);
+        let mismatch = provided.length ^ adminSecret.length;
+        for (let i = 0; i < maxLen; i++) {
+          const a = i < provided.length ? provided.charCodeAt(i) : 0;
+          const b = i < adminSecret.length ? adminSecret.charCodeAt(i) : 0;
+          mismatch |= a ^ b;
+        }
         if (mismatch !== 0) return respond({ error: 'Unauthorized' }, 401, cors);
 
         const existing = await env.FINANCE_KV.get(userKey('admin', 'profile'));
@@ -299,8 +304,10 @@ export default {
 
         if ((profile as { pendingInviteId?: string }).pendingInviteId) {
           const inviteId = (profile as { pendingInviteId?: string }).pendingInviteId!;
-          await markInviteUsed(env.FINANCE_KV, inviteId, username);
-          delete (profile as { pendingInviteId?: string }).pendingInviteId;
+          const marked = await markInviteUsed(env.FINANCE_KV, inviteId, username);
+          if (!marked) console.warn(`Invite ${inviteId} could not be marked used for ${username} (expired or revoked).`);
+          const p = profile as { pendingInviteId?: string };
+          delete p.pendingInviteId;
         }
 
         await env.FINANCE_KV.put(userKey(username, 'profile'), JSON.stringify(profile));

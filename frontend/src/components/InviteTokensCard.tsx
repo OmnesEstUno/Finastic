@@ -36,8 +36,11 @@ export default function InviteTokensCard() {
 
   async function handleRevoke(id: string) {
     if (!confirm('Revoke this invite?')) return;
-    try { await deleteInvite(id); await refresh(); }
-    catch (err) { setError((err as Error).message); }
+    try {
+      await deleteInvite(id);
+      if (newestToken?.id === id) setNewestToken(null);
+      await refresh();
+    } catch (err) { setError((err as Error).message); }
   }
 
   return (

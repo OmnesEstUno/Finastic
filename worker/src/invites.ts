@@ -17,6 +17,22 @@ async function hmacSign(data: string, secret: string): Promise<string> {
   return b64urlEncode(new Uint8Array(sig));
 }
 
+// Derive a domain-scoped signing key from JWT_SECRET so that JWT secret
+// rotation does not invalidate live invite tokens.
+async function getInviteSigningKey(jwtSecret: string): Promise<string> {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw', enc.encode(jwtSecret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
+  );
+  const sig = await crypto.subtle.sign('HMAC', key, enc.encode('invite-token-v1'));
+  return Array.from(new Uint8Array(sig)).map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+let cachedInviteKey: Promise<string> | null = null;
+async function getInviteSigningKeyCached(jwtSecret: string): Promise<string> {
+  return (cachedInviteKey ??= getInviteSigningKey(jwtSecret));
+}
+
 function b64urlEncode(bytes: Uint8Array): string {
   const s = btoa(String.fromCharCode(...bytes));
   return s.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -36,7 +52,8 @@ export async function createInvite(kv: KVNamespace, jwtSecret: string): Promise<
   const expiresAt = now + INVITE_TTL_SECONDS;
   const record: InviteRecord = { expiresAt, createdAt: now, usedBy: null };
   await kv.put(`invites:${id}`, JSON.stringify(record), { expirationTtl: INVITE_TTL_SECONDS });
-  const sig = await hmacSign(id, jwtSecret);
+  const inviteKey = await getInviteSigningKeyCached(jwtSecret);
+  const sig = await hmacSign(id, inviteKey);
   const token = b64urlEncodeStr(`${id}:${sig}`);
   return { id, token, expiresAt };
 }
@@ -48,7 +65,8 @@ export async function verifyInvite(kv: KVNamespace, token: string, jwtSecret: st
   if (colon < 1) return { ok: false, reason: 'malformed token' };
   const id = decoded.slice(0, colon);
   const sig = decoded.slice(colon + 1);
-  const expected = await hmacSign(id, jwtSecret);
+  const inviteKey = await getInviteSigningKeyCached(jwtSecret);
+  const expected = await hmacSign(id, inviteKey);
   if (sig !== expected) return { ok: false, reason: 'invalid signature' };
   const raw = await kv.get(`invites:${id}`);
   if (!raw) return { ok: false, reason: 'invite not found or expired' };
@@ -58,25 +76,25 @@ export async function verifyInvite(kv: KVNamespace, token: string, jwtSecret: st
   return { ok: true, id, record };
 }
 
-export async function markInviteUsed(kv: KVNamespace, id: string, username: string): Promise<void> {
+export async function markInviteUsed(kv: KVNamespace, id: string, username: string): Promise<boolean> {
   const raw = await kv.get(`invites:${id}`);
-  if (!raw) return; // expired or revoked between verify and confirm — let the confirm proceed; invite is one-shot anyway
+  if (!raw) return false;
   const record = JSON.parse(raw) as InviteRecord;
   record.usedBy = username;
   const ttl = Math.max(60, record.expiresAt - Math.floor(Date.now() / 1000));
   await kv.put(`invites:${id}`, JSON.stringify(record), { expirationTtl: ttl });
+  return true;
 }
 
-export async function listInvites(kv: KVNamespace): Promise<Array<{ id: string; expiresAt: number; createdAt: number; usedBy: string | null; token?: never }>> {
+export async function listInvites(kv: KVNamespace): Promise<Array<{ id: string; expiresAt: number; createdAt: number; usedBy: string | null }>> {
   const list = await kv.list({ prefix: 'invites:' });
-  const out: Array<{ id: string; expiresAt: number; createdAt: number; usedBy: string | null }> = [];
-  for (const k of list.keys) {
+  const reads = await Promise.all(list.keys.map(async (k) => {
     const raw = await kv.get(k.name);
-    if (!raw) continue;
+    if (!raw) return null;
     const r = JSON.parse(raw) as InviteRecord;
-    out.push({ id: k.name.slice('invites:'.length), ...r });
-  }
-  return out;
+    return { id: k.name.slice('invites:'.length), ...r };
+  }));
+  return reads.filter((x): x is { id: string; expiresAt: number; createdAt: number; usedBy: string | null } => x !== null);
 }
 
 export async function deleteInvite(kv: KVNamespace, id: string): Promise<void> {

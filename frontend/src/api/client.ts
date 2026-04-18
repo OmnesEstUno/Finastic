@@ -237,13 +237,16 @@ export async function saveUserCategories(data: UserCategories): Promise<void> {
 // ─── Admin ───────────────────────────────────────────────────────────────────
 
 export async function adminInit(adminSecret: string, password: string): Promise<{ totpSecret: string; otpauthUrl: string }> {
-  const r = await fetch(`${API_URL}/api/admin/init`, {
+  const res = await fetch(`${API_URL}/api/admin/init`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Admin-Secret': adminSecret },
     body: JSON.stringify({ password }),
   });
-  if (!r.ok) throw new Error((await r.json().catch(() => ({ error: r.statusText }))).error ?? 'Admin init failed');
-  return r.json();
+  const data = await res.json().catch(() => ({ error: 'Unexpected server response.' }));
+  if (!res.ok) {
+    throw new Error((data as { error?: string }).error ?? `Request failed with status ${res.status}`);
+  }
+  return data as { totpSecret: string; otpauthUrl: string };
 }
 
 export interface InviteSummary {
