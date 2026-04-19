@@ -37,6 +37,7 @@ import ExpenseCategoryTable from '../components/dashboard/ExpenseCategoryTable';
 import YearSelector from '../components/dashboard/YearSelector';
 import AllTransactionsCard from '../components/dashboard/AllTransactionsCard';
 import MonthlyBalanceView from '../components/dashboard/MonthlyBalanceView';
+import NetBalanceView from '../components/dashboard/NetBalanceView';
 import ExpandedMonthView from '../components/dashboard/ExpandedMonthView';
 import Toast from '../components/Toast';
 import EmptyState from '../components/EmptyState';
@@ -405,10 +406,16 @@ export default function Dashboard() {
           {monthlyBalance.length === 0 ? (
             <EmptyState message={`No data for ${incomeYear} yet.`} />
           ) : expandedMonth === null ? (
-            <MonthlyBalanceView
-              monthlyBalance={monthlyBalance}
-              onMonthClick={(idx) => setExpandedMonth(idx)}
-            />
+            <>
+              <MonthlyBalanceView
+                monthlyBalance={monthlyBalance}
+                onMonthClick={(idx) => setExpandedMonth(idx)}
+              />
+              <div style={{ marginTop: 16 }}>
+                <h3 style={{ color: 'var(--text-secondary)', marginBottom: 8, fontSize: '1rem' }}>Net Balance</h3>
+                <NetBalanceView monthlyBalance={monthlyBalance} />
+              </div>
+            </>
           ) : (
             <ExpandedMonthView
               transactions={transactions}

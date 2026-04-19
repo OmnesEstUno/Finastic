@@ -13,6 +13,7 @@ import { Category, TimeRange } from '../../types';
 import { getCategoryColor } from '../../utils/categories';
 import { buildLineChartData, formatCurrency, getMaxValue, getTrendingCategories } from '../../utils/dataProcessing';
 import { Transaction } from '../../types';
+import CheckmarkToggle from '../CheckmarkToggle';
 
 interface Props {
   transactions: Transaction[];
@@ -127,67 +128,33 @@ export default function CategoryLineChart({ transactions, timeRange }: Props) {
 
   return (
     <div>
-      {/* Legend with checkboxes (and selection indicator) */}
+      {/* Legend with CheckmarkToggle chips */}
       <div
         style={{
           display: 'flex',
           flexWrap: 'wrap',
-          gap: '8px 16px',
+          gap: '8px 12px',
           marginBottom: 12,
           alignItems: 'center',
         }}
       >
         {visibleCategories.map((cat) => {
           const isActive = activeCategories.has(cat);
-          const isSelected = selectedLine === cat;
           return (
-            <button
+            <div
               key={cat}
-              onClick={(e) => {
-                // Shift-click (or Ctrl/Cmd click) toggles visibility.
-                // Plain click selects/deselects the line.
-                if (e.shiftKey || e.ctrlKey || e.metaKey) {
-                  toggle(cat);
-                } else {
-                  if (!isActive) toggle(cat);
-                  selectCategory(cat);
-                }
-              }}
-              onMouseEnter={() => setHoveredLine(cat)}
-              onMouseLeave={() => setHoveredLine(null)}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '4px 10px',
-                borderRadius: 999,
-                border: `1px solid ${isSelected ? getCategoryColor(cat) : isActive ? getCategoryColor(cat) + '60' : 'var(--border)'}`,
-                background: isSelected ? getCategoryColor(cat) + '30' : isActive ? getCategoryColor(cat) + '18' : 'transparent',
-                cursor: 'pointer',
-                fontSize: '0.75rem',
-                fontWeight: 500,
-                color: isActive ? getCategoryColor(cat) : 'var(--text-muted)',
-                transition: 'all 0.15s',
-                opacity: highlighted && highlighted !== cat ? 0.4 : 1,
-              }}
-              title={isActive ? 'Click to isolate, shift-click to hide' : 'Click to show'}
+              style={{ opacity: highlighted && highlighted !== cat ? 0.4 : 1, transition: 'opacity 0.15s' }}
             >
-              <span
-                style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: '50%',
-                  background: isActive ? getCategoryColor(cat) : 'var(--border)',
-                  flexShrink: 0,
-                }}
+              <CheckmarkToggle
+                label={cat}
+                color={getCategoryColor(cat)}
+                active={isActive}
+                size="sm"
+                onToggle={() => toggle(cat)}
+                onHover={() => setHoveredLine(cat)}
+                onLeave={() => setHoveredLine(null)}
               />
-              {cat}
-              {isActive ? (
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-              ) : null}
-            </button>
+            </div>
           );
         })}
         {selectedLine && (
@@ -201,7 +168,7 @@ export default function CategoryLineChart({ transactions, timeRange }: Props) {
         )}
       </div>
       <p className="text-xs text-muted" style={{ marginBottom: 16 }}>
-        Tip: Click a legend chip or a data point to isolate that category. Shift-click to toggle visibility.
+        Tip: Click a chip to show/hide a category. Click a data point to isolate a line.
       </p>
 
       <ResponsiveContainer width="100%" height={400}>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
 import { Transaction, IncomeEntry, Category, UserCategories } from '../../types';
 import { updateTransaction, updateIncome } from '../../api/client';
@@ -8,8 +8,10 @@ import {
   buildDailyBalance, buildMonthEvents, formatCurrency, MONTH_NAMES,
 } from '../../utils/dataProcessing';
 import { getCategoryColor } from '../../utils/categories';
-import { INCOME_COLOR, EXPENSE_COLOR } from './constants';
+import { INCOME_COLOR, EXPENSE_COLOR, formatAxisCurrency } from './constants';
 import TransactionDrillDown, { DrillDownEvent } from './TransactionDrillDown';
+import MonthTotalsBar from './MonthTotalsBar';
+import CheckmarkToggle from '../CheckmarkToggle';
 
 // ─── Monthly balance: expanded (per-month) view ────────────────────────────
 
@@ -41,21 +43,59 @@ function ExpandedMonthView({
   const dailyBalance = buildDailyBalance(transactions, incomeEntries, year, month);
   const rawEvents = buildMonthEvents(transactions, incomeEntries, year, month);
 
+  // ── Task 14: day-click filter ──────────────────────────────────────────────
+  const [selectedDays, setSelectedDays] = useState<Set<number>>(new Set());
+
+  // ── Task 15: category multi-select ────────────────────────────────────────
+  const [selectedCategories, setSelectedCategories] = useState<Set<Category>>(new Set());
+
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Clear search when the expanded month changes
+  // Clear all filters when the expanded month changes
   useEffect(() => {
     setSearchQuery('');
+    setSelectedDays(new Set());
+    setSelectedCategories(new Set());
   }, [year, month]);
 
-  // Search filter layered on top of the chronological event list
+  // Per-category totals for quick reference above the chronological list
+  const categoryTotals = new Map<Category, number>();
+  let totalIncome = 0;
+  let totalExpenses = 0;
+  rawEvents.forEach((e) => {
+    if (e.kind === 'income') {
+      totalIncome += e.amount;
+    } else {
+      totalExpenses += e.amount;
+      if (e.category) {
+        categoryTotals.set(e.category, (categoryTotals.get(e.category) ?? 0) + e.amount);
+      }
+    }
+  });
+
+  const monthLabel = `${MONTH_NAMES[month]} ${year}`;
+
+  // ── Composed filter chain ──────────────────────────────────────────────────
+  // Step 1: day filter
+  const afterDayFilter = selectedDays.size === 0
+    ? rawEvents
+    : rawEvents.filter((e) => selectedDays.has(e.day));
+
+  // Step 2: category filter
+  const afterCategoryFilter = selectedCategories.size === 0
+    ? afterDayFilter
+    : afterDayFilter.filter((e) => {
+        if (e.kind !== 'expense' || !e.category) return false;
+        return selectedCategories.has(e.category);
+      });
+
+  // Step 3: search filter
   const filteredRawEvents = searchQuery.trim()
-    ? rawEvents.filter((e) => e.description.toLowerCase().includes(searchQuery.trim().toLowerCase()))
-    : rawEvents;
+    ? afterCategoryFilter.filter((e) =>
+        e.description.toLowerCase().includes(searchQuery.trim().toLowerCase()))
+    : afterCategoryFilter;
 
   // Transform MonthEvent[] into the unified DrillDownEvent[] shape.
-  // For income events, look up the original transaction notes if applicable
-  // (income entries don't have notes, so notes is always undefined for income).
   const drillDownEvents: DrillDownEvent[] = filteredRawEvents.map((e) => ({
     id: e.id,
     kind: e.kind,
@@ -68,49 +108,74 @@ function ExpandedMonthView({
       : undefined,
   }));
 
-  // Per-category totals for quick reference above the chronological list
-  const categoryTotals = new Map<Category, number>();
-  let incomeTotal = 0;
-  rawEvents.forEach((e) => {
-    if (e.kind === 'income') {
-      incomeTotal += e.amount;
-    } else if (e.category) {
-      categoryTotals.set(e.category, (categoryTotals.get(e.category) ?? 0) + e.amount);
-    }
-  });
-
-  const monthLabel = `${MONTH_NAMES[month]} ${year}`;
-
   return (
     <>
-      {/* Daily trend bar chart — no surplus/deficit bars in expanded mode */}
-      <ResponsiveContainer width="100%" height={280}>
-        <BarChart data={dailyBalance} margin={{ top: 4, right: 16, left: 8, bottom: 4 }}>
-          <CartesianGrid strokeDasharray="3 3" vertical={false} />
-          <XAxis
-            dataKey="label"
-            tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
-            axisLine={{ stroke: 'var(--border)' }}
-            tickLine={false}
-            label={{ value: `Day of ${MONTH_NAMES[month]}`, position: 'insideBottom', offset: -4, fill: 'var(--text-muted)', fontSize: 11 }}
-          />
-          <YAxis
-            tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
-            axisLine={false}
-            tickLine={false}
-            tickFormatter={(v: number) => `$${v >= 1000 ? `${(v / 1000).toFixed(1)}k` : v}`}
-          />
-          <Tooltip
-            contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, fontSize: '0.8125rem' }}
-            cursor={{ fill: 'rgba(255,255,255,0.04)' }}
-            labelFormatter={(label: string) => `${MONTH_NAMES[month]} ${label}`}
-            formatter={(value: number, name: string) => [formatCurrency(value), name]}
-          />
-          <Legend wrapperStyle={{ fontSize: '0.8125rem', color: 'var(--text-secondary)' }} />
-          <Bar dataKey="income" name="Income" fill={INCOME_COLOR} radius={[3, 3, 0, 0]} />
-          <Bar dataKey="expenses" name="Expenses" fill={EXPENSE_COLOR} radius={[3, 3, 0, 0]} />
-        </BarChart>
-      </ResponsiveContainer>
+      {/* ── Task 13: two-column chart layout ─────────────────────────────── */}
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+        <div style={{ flex: '2 1 400px' }}>
+          {/* Daily trend bar chart — no surplus/deficit bars in expanded mode */}
+          <ResponsiveContainer width="100%" height={280}>
+            <BarChart
+              data={dailyBalance}
+              margin={{ top: 4, right: 16, left: 8, bottom: 4 }}
+              onClick={(state: unknown) => {
+                const s = state as { activeLabel?: string } | null;
+                if (!s?.activeLabel) return;
+                const day = parseInt(s.activeLabel, 10);
+                if (!Number.isFinite(day)) return;
+                setSelectedDays((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(day)) next.delete(day); else next.add(day);
+                  return next;
+                });
+              }}
+            >
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis
+                dataKey="label"
+                tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
+                axisLine={{ stroke: 'var(--border)' }}
+                tickLine={false}
+                label={{ value: `Day of ${MONTH_NAMES[month]}`, position: 'insideBottom', offset: -4, fill: 'var(--text-muted)', fontSize: 11 }}
+              />
+              <YAxis
+                tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
+                axisLine={false}
+                tickLine={false}
+                tickFormatter={formatAxisCurrency}
+              />
+              <Tooltip
+                contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, fontSize: '0.8125rem' }}
+                cursor={{ fill: 'rgba(255,255,255,0.04)' }}
+                labelFormatter={(label: string) => `${MONTH_NAMES[month]} ${label}`}
+                formatter={(value: number, name: string) => [formatCurrency(value), name]}
+              />
+              <Legend wrapperStyle={{ fontSize: '0.8125rem', color: 'var(--text-secondary)' }} />
+              <Bar dataKey="income" name="Income" fill={INCOME_COLOR} radius={[3, 3, 0, 0]}>
+                {dailyBalance.map((d) => (
+                  <Cell
+                    key={d.day}
+                    fill={INCOME_COLOR}
+                    fillOpacity={selectedDays.size === 0 || selectedDays.has(d.day) ? 1 : 0.3}
+                  />
+                ))}
+              </Bar>
+              <Bar dataKey="expenses" name="Expenses" fill={EXPENSE_COLOR} radius={[3, 3, 0, 0]}>
+                {dailyBalance.map((d) => (
+                  <Cell
+                    key={d.day}
+                    fill={EXPENSE_COLOR}
+                    fillOpacity={selectedDays.size === 0 || selectedDays.has(d.day) ? 1 : 0.3}
+                  />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+        <div style={{ flex: '1 1 240px' }}>
+          <MonthTotalsBar income={totalIncome} expenses={totalExpenses} />
+        </div>
+      </div>
 
       {/* Category summary for the month */}
       {categoryTotals.size > 0 && (
@@ -119,7 +184,7 @@ function ExpandedMonthView({
             {monthLabel} summary
           </h3>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-            {incomeTotal > 0 && (
+            {totalIncome > 0 && (
               <span
                 className="chip"
                 style={{
@@ -129,24 +194,25 @@ function ExpandedMonthView({
                   padding: '4px 10px',
                 }}
               >
-                Income: {formatCurrency(incomeTotal)}
+                Income: {formatCurrency(totalIncome)}
               </span>
             )}
+            {/* ── Task 15: CheckmarkToggle chips for category filter ───── */}
             {[...categoryTotals.entries()]
               .sort((a, b) => b[1] - a[1])
               .map(([cat, total]) => (
-                <span
+                <CheckmarkToggle
                   key={cat}
-                  className="chip"
-                  style={{
-                    background: `${getCategoryColor(cat)}18`,
-                    color: getCategoryColor(cat),
-                    border: `1px solid ${getCategoryColor(cat)}40`,
-                    padding: '4px 10px',
-                  }}
-                >
-                  {cat}: {formatCurrency(total)}
-                </span>
+                  size="sm"
+                  label={`${cat}: ${formatCurrency(total)}`}
+                  color={getCategoryColor(cat)}
+                  active={selectedCategories.size === 0 || selectedCategories.has(cat)}
+                  onToggle={() => setSelectedCategories((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(cat)) next.delete(cat); else next.add(cat);
+                    return next;
+                  })}
+                />
               ))}
           </div>
         </div>
@@ -172,6 +238,16 @@ function ExpandedMonthView({
           style={{ marginBottom: 12, maxWidth: 360 }}
         />
 
+        {/* ── Task 14: day-filter indicator ───────────────────────────────── */}
+        {selectedDays.size > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <span style={{ color: 'var(--accent)', fontSize: '0.8125rem' }}>
+              Filtering to {selectedDays.size} day{selectedDays.size !== 1 ? 's' : ''}
+            </span>
+            <button className="btn btn-ghost btn-sm" onClick={() => setSelectedDays(new Set())}>Clear</button>
+          </div>
+        )}
+
         {rawEvents.length === 0 ? (
           <p className="text-muted text-sm">No activity recorded for {monthLabel}.</p>
         ) : (
@@ -190,7 +266,11 @@ function ExpandedMonthView({
             onUpdateIncome={onUpdateIncome}
             userCategories={userCategories}
             addCustomCategory={addCustomCategory}
-            emptyMessage={searchQuery.trim() ? `No entries matching "${searchQuery}".` : `No activity recorded for ${monthLabel}.`}
+            emptyMessage={
+              selectedDays.size > 0 || selectedCategories.size > 0 || searchQuery.trim()
+                ? 'No entries match the active filters.'
+                : `No activity recorded for ${monthLabel}.`
+            }
             isActiveOwner={isActiveOwner}
           />
         )}
