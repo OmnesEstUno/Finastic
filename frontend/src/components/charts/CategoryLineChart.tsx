@@ -249,7 +249,12 @@ export default function CategoryLineChart({ transactions, timeRange, customRange
                 dataKey={cat}
                 stroke={getCategoryColor(cat)}
                 strokeWidth={emphasized ? 3 : 1.5}
-                dot={false}
+                dot={data.length <= 1 ? {
+                  r: 4,
+                  strokeWidth: 2,
+                  stroke: getCategoryColor(cat),
+                  fill: 'var(--bg-card)',
+                } : false}
                 activeDot={{
                   r: 5,
                   strokeWidth: 2,
