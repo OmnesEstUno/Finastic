@@ -111,8 +111,10 @@ export interface MonthlyExpenseRow {
   total: number;
 }
 
-export function buildMonthlyExpenseTable(transactions: Transaction[]): MonthlyExpenseRow[] {
-  const year = new Date().getFullYear();
+export function buildMonthlyExpenseTable(
+  transactions: Transaction[],
+  year: number = new Date().getFullYear(),
+): MonthlyExpenseRow[] {
   const yearStart = startOfYear(new Date(year, 0, 1));
   const yearEnd = new Date(year, 11, 31, 23, 59, 59);
 
