@@ -235,47 +235,45 @@ export default function WorkspacesCard() {
                     </span>
                   </div>
 
-                  {/* Members list — shown for owners */}
-                  {isOwner && (
-                    <div style={{ marginTop: 8 }}>
-                      <p style={{ margin: '0 0 4px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                        Members
-                      </p>
-                      <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 8px' }}>
-                        {inst.members.map((u) => (
-                          <li
-                            key={u}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 8,
-                              padding: '2px 0',
-                              fontSize: '0.8125rem',
-                            }}
-                          >
-                            <span style={{ color: 'var(--text-primary)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {u}
-                              {u === inst.owner && (
-                                <span style={{ color: 'var(--text-muted)', marginLeft: 4 }}>(owner)</span>
-                              )}
-                            </span>
-                            {u !== inst.owner && (
-                              <button
-                                onClick={() => handleRemoveMember(inst.id, u)}
-                                className="btn btn-ghost btn-sm"
-                                disabled={busy}
-                                style={{ fontSize: '0.75rem', padding: '2px 8px', flexShrink: 0 }}
-                              >
-                                Remove
-                              </button>
+                  {/* Members list — shown to everyone, remove action is owner-only */}
+                  <div style={{ marginTop: 8 }}>
+                    <p style={{ margin: '0 0 4px', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Members
+                    </p>
+                    <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 8px' }}>
+                      {inst.members.map((u) => (
+                        <li
+                          key={u}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            padding: '2px 0',
+                            fontSize: '0.8125rem',
+                          }}
+                        >
+                          <span style={{ color: 'var(--text-primary)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {u}
+                            {u === inst.owner && (
+                              <span style={{ color: 'var(--text-muted)', marginLeft: 4 }}>(owner)</span>
                             )}
-                          </li>
-                        ))}
-                      </ul>
-                      {/* Invite section expands below the member list, inside the tile body */}
-                      <WorkspaceInvitesPanel instanceId={inst.id} />
-                    </div>
-                  )}
+                          </span>
+                          {isOwner && u !== inst.owner && (
+                            <button
+                              onClick={() => handleRemoveMember(inst.id, u)}
+                              className="btn btn-ghost btn-sm"
+                              disabled={busy}
+                              style={{ fontSize: '0.75rem', padding: '2px 8px', flexShrink: 0 }}
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                    {/* Invite section is owner-only */}
+                    {isOwner && <WorkspaceInvitesPanel instanceId={inst.id} />}
+                  </div>
                 </div>
 
                 {/* Right: vertically stacked action buttons */}
