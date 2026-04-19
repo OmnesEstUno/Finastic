@@ -9,7 +9,7 @@ import {
   ResponsiveContainer,
   Cell,
 } from 'recharts';
-import { Transaction, IncomeEntry, TimeRange, Category } from '../types';
+import { Transaction, IncomeEntry, TimeRange, Category, CustomDateRange } from '../types';
 import {
   getTransactions,
   getIncome,
@@ -59,6 +59,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [timeRange, setTimeRange] = useState<TimeRange>('year');
+  const [customRange, setCustomRange] = useState<CustomDateRange | null>(null);
   const [expandedCategory, setExpandedCategory] = useState<Category | null>(null);
   const [expandedMonth, setExpandedMonth] = useState<number | null>(null);
   const [expenseYear, setExpenseYear] = useState(new Date().getFullYear());
@@ -333,7 +334,12 @@ export default function Dashboard() {
           {transactions.length === 0 ? (
             <EmptyState message="No transactions yet. Upload a CSV or add entries manually." />
           ) : (
-            <CategoryLineChart transactions={transactions} timeRange={timeRange} />
+            <CategoryLineChart
+              transactions={transactions}
+              timeRange={timeRange}
+              customRange={customRange}
+              onCustomRangeChange={setCustomRange}
+            />
           )}
         </div>
       </div>
