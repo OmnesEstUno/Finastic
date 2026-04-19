@@ -1,24 +1,27 @@
 import { useEffect, useState } from 'react';
-import { parseISO } from 'date-fns';
+import DatePicker from 'react-datepicker';
+import { format, parseISO } from 'date-fns';
 import { CustomDateRange } from '../types';
+import 'react-datepicker/dist/react-datepicker.css';
 
 interface DateRangePickerProps {
   value: CustomDateRange | null;
   onChange: (range: CustomDateRange) => void;
-  minDate?: string; // yyyy-mm-dd; earliest selectable date (passed to <input min>)
-  maxDate?: string; // yyyy-mm-dd; latest selectable date (passed to <input max>)
+  minDate?: string; // yyyy-mm-dd
+  maxDate?: string; // yyyy-mm-dd
 }
 
-// Two date inputs + Apply. The browser's native date picker enforces the
-// min/max bounds (greys out dates outside the range), so apply-time checks
-// only need to guard start < end and non-empty values.
+const toISO = (d: Date) => format(d, 'yyyy-MM-dd');
+const fromISO = (s: string | null | undefined) => (s ? parseISO(s) : null);
+
+// react-datepicker with month + year dropdowns in the header.
+// Clicking either dropdown opens a list; selecting a value updates the
+// day grid and auto-returns to the day-selection view.
 export default function DateRangePicker({ value, onChange, minDate, maxDate }: DateRangePickerProps) {
-  const [start, setStart] = useState(value?.start ?? '');
-  const [end, setEnd] = useState(value?.end ?? '');
+  const [start, setStart] = useState<string>(value?.start ?? '');
+  const [end, setEnd] = useState<string>(value?.end ?? '');
   const [error, setError] = useState('');
 
-  // Keep the local draft in sync if the parent resets the value (e.g., after
-  // a workspace switch clears the custom range).
   useEffect(() => {
     setStart(value?.start ?? '');
     setEnd(value?.end ?? '');
@@ -33,26 +36,37 @@ export default function DateRangePicker({ value, onChange, minDate, maxDate }: D
     onChange({ start, end });
   }
 
+  const min = fromISO(minDate);
+  const max = fromISO(maxDate);
+
   return (
     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-      <input
-        type="date"
+      <DatePicker
+        selected={fromISO(start)}
+        onChange={(d: Date | null) => setStart(d ? toISO(d) : '')}
+        minDate={min ?? undefined}
+        maxDate={max ?? undefined}
+        dateFormat="yyyy-MM-dd"
+        showMonthDropdown
+        showYearDropdown
+        dropdownMode="select"
+        placeholderText="Start date"
         className="input"
-        style={{ padding: '4px 8px', width: 150 }}
-        min={minDate}
-        max={maxDate}
-        value={start}
-        onChange={(e) => setStart(e.target.value)}
+        wrapperClassName="date-range-wrapper"
       />
       <span style={{ color: 'var(--text-muted)' }}>→</span>
-      <input
-        type="date"
+      <DatePicker
+        selected={fromISO(end)}
+        onChange={(d: Date | null) => setEnd(d ? toISO(d) : '')}
+        minDate={min ?? undefined}
+        maxDate={max ?? undefined}
+        dateFormat="yyyy-MM-dd"
+        showMonthDropdown
+        showYearDropdown
+        dropdownMode="select"
+        placeholderText="End date"
         className="input"
-        style={{ padding: '4px 8px', width: 150 }}
-        min={minDate}
-        max={maxDate}
-        value={end}
-        onChange={(e) => setEnd(e.target.value)}
+        wrapperClassName="date-range-wrapper"
       />
       <button type="button" className="btn btn-sm btn-primary" onClick={apply}>Apply</button>
       {error && <span className="text-xs text-danger">{error}</span>}
