@@ -505,19 +505,21 @@ a:hover { color: var(--accent-hover); }
 .workspace-tab-add {
   width: 36px;
   height: 36px;
-  border-radius: 50%;
-  border: 1px solid var(--accent);
+  border: none;
   background: transparent;
   color: var(--accent);
-  font-size: 1.4rem;
-  line-height: 1;
+  padding: 0;
   cursor: pointer;
   margin: 12px auto 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s ease;
+  transition: color 0.15s ease, transform 0.15s ease;
 }
 .workspace-tab-add:hover {
-  background: var(--accent-dim);
+  color: var(--text-primary);
+  transform: scale(1.08);
+}
+.workspace-tab-add .material-symbols-outlined {
+  font-size: 32px;
 }

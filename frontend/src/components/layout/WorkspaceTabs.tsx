@@ -39,7 +39,7 @@ export default function WorkspaceTabs() {
         title="New workspace"
         aria-label="Create new workspace"
       >
-        +
+        <span className="material-symbols-outlined">add_circle</span>
       </button>
     </nav>
   );

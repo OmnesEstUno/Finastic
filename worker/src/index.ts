@@ -617,10 +617,7 @@ export default {
           const isOwner = inst.owner === username;
           const isSelfRemoval = username === memberToRemove;
           if (!isOwner && !isSelfRemoval) return respond({ error: 'Only the owner can modify members.' }, 403, cors);
-          if (inst.owner === memberToRemove) {
-            if (isSelfRemoval) return respond({ error: 'Owner cannot leave their own workspace; delete it instead.' }, 400, cors);
-            return respond({ error: 'Cannot remove the owner.' }, 400, cors);
-          }
+          if (inst.owner === memberToRemove) return respond({ error: 'Cannot remove the owner.' }, 400, cors);
           inst.members = inst.members.filter((u) => u !== memberToRemove);
           await env.FINANCE_KV.put(instanceMetaKey(id), JSON.stringify(inst));
           const p = await getUserProfile(env.FINANCE_KV, memberToRemove);
@@ -639,8 +636,6 @@ export default {
         const body = await request.json() as { token?: string };
         const token = (body.token ?? '').trim();
         if (!token) return respond({ error: 'Token required.' }, 400, cors);
-        // C4: admin cannot join workspaces
-        if (auth.username === 'admin') return respond({ error: 'Admin cannot join workspaces.' }, 400, cors);
         const verified = await verifyWorkspaceInvite(env.FINANCE_KV, token, env.JWT_SECRET);
         if (!verified.ok) return respond({ error: `Invite rejected: ${verified.reason}` }, 400, cors);
         const { id: inviteId, record } = verified;
