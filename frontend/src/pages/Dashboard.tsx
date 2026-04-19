@@ -38,6 +38,7 @@ import EmptyState from '../components/EmptyState';
 import { useUserCategories } from '../hooks/useUserCategories';
 import { useWorkspaces } from '../hooks/useWorkspaces';
 import Layout from '../components/layout/Layout';
+import { useDataEntry } from '../contexts/DataEntryContext';
 import DangerZone from '../components/DangerZone';
 // Undo-toast payload: what was just deleted, so we can restore it if the
 // user clicks Undo before the timeout fires.
@@ -73,6 +74,12 @@ export default function Dashboard() {
       setError((err as Error).message);
     }
   }, []);
+
+  // Refetch when data entry modal submits successfully
+  const { onSubmitted } = useDataEntry();
+  useEffect(() => {
+    return onSubmitted(() => { refetchAll(); });
+  }, [onSubmitted, refetchAll]);
 
   // Initial load — wait until we know whether there's an active instance.
   // activeInstanceId is null until useWorkspaces resolves, so delay the first

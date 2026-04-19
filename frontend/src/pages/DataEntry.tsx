@@ -20,8 +20,12 @@ import {
 import { useUserCategories } from '../hooks/useUserCategories';
 import { useWorkspaces } from '../hooks/useWorkspaces';
 import CategorySelect, { NEW_CATEGORY_SENTINEL } from '../components/CategorySelect';
-import Layout from '../components/layout/Layout';
 import DuplicateStatusCell, { DuplicateStatus } from '../components/data-entry/DuplicateStatusCell';
+
+interface DataEntryProps {
+  onRequestClose: () => void;
+  onPendingChange: (pending: boolean) => void;
+}
 
 // NOTE: This file is deliberately large because the CSV upload flow and the
 // manual/pay-stub income flow share non-trivial state (existingDedupLookup,
@@ -39,7 +43,7 @@ interface PreviewRow {
   duplicateMatch: DuplicateMatch | null;
 }
 
-export default function DataEntry() {
+export default function DataEntry({ onRequestClose, onPendingChange }: DataEntryProps) {
   // Upload state
   const [dragOver, setDragOver] = useState(false);
   const [parseErrors, setParseErrors] = useState<string[]>([]);
@@ -99,6 +103,33 @@ export default function DataEntry() {
       .then(([txns, inc]) => setExistingDedupLookup(buildExistingDedupLookup(txns, inc)))
       .catch(() => {});
   }, [activeInstanceId]);
+
+  // ─── Pending change tracking ──────────────────────────────────────────────
+  // Notify parent whenever pending state transitions so the modal can decide
+  // whether to confirm before closing.
+  useEffect(() => {
+    const pending =
+      previewRows.length > 0 ||
+      manualDate !== '' ||
+      manualDesc !== '' ||
+      manualAmount !== '' ||
+      incDesc !== '' ||
+      incDate !== '' ||
+      incGross !== '' ||
+      incNet !== '' ||
+      incFederal !== '' ||
+      incState !== '' ||
+      incSS !== '' ||
+      incMedicare !== '' ||
+      incOther !== '';
+    onPendingChange(pending);
+  }, [
+    previewRows,
+    manualDate, manualDesc, manualAmount,
+    incDesc, incDate, incGross, incNet,
+    incFederal, incState, incSS, incMedicare, incOther,
+    onPendingChange,
+  ]);
 
   function handlePreviewCategoryChange(rowIdx: number, pickedValue: string) {
     let categoryName: string | null = pickedValue;
@@ -303,6 +334,11 @@ export default function DataEntry() {
       setPreviewRows([]);
       setParseErrors([]);
       setSkippedCount(0);
+      // Brief pause so the success message is visible, then close the modal
+      setTimeout(() => {
+        onPendingChange(false);
+        onRequestClose();
+      }, 1200);
     } catch (err) {
       setSubmitError((err as Error).message);
     } finally {
@@ -331,6 +367,10 @@ export default function DataEntry() {
       setManualAmount('');
       setManualCategory('Other');
       setManualDuplicatePending(null);
+      setTimeout(() => {
+        onPendingChange(false);
+        onRequestClose();
+      }, 1200);
     } catch (err) {
       setManualError((err as Error).message);
     } finally {
@@ -424,6 +464,10 @@ export default function DataEntry() {
       setIncFederal(''); setIncState(''); setIncSS(''); setIncMedicare(''); setIncOther('');
       setIncomeFile(null); setIncomeLowConfidence(false);
       setIncomeDuplicatePending(null);
+      setTimeout(() => {
+        onPendingChange(false);
+        onRequestClose();
+      }, 1200);
     } catch (err) {
       setIncomeError((err as Error).message);
     } finally {
@@ -472,17 +516,16 @@ export default function DataEntry() {
   // ─── Render ──────────────────────────────────────────────────────────────
 
   return (
-    <Layout>
-      <div style={{ maxWidth: 900, margin: '0 auto' }}>
-        <div style={{ marginBottom: 24 }}>
-          <h1 style={{ fontSize: '1.5rem', marginBottom: 4 }}>Enter Data</h1>
-          <p style={{ color: 'var(--text-muted)' }}>
-            Upload transaction CSVs from any supported bank/credit card, or enter records manually below.
-          </p>
-        </div>
+    <div>
+      <div style={{ marginBottom: 24 }}>
+        <h2 style={{ fontSize: '1.25rem', marginBottom: 4 }}>Enter Data</h2>
+        <p style={{ color: 'var(--text-muted)' }}>
+          Upload transaction CSVs from any supported bank/credit card, or enter records manually below.
+        </p>
+      </div>
 
-        {/* ── Unified Upload ── */}
-        <div className="card" style={{ marginBottom: 32 }}>
+      {/* ── Unified Upload ── */}
+      <div className="card" style={{ marginBottom: 32 }}>
           <div className="card-header">
             <h2>Upload Transactions</h2>
             <span className="text-xs text-muted">Works with any bank or card CSV — columns auto-detected</span>
@@ -909,7 +952,6 @@ export default function DataEntry() {
             </>
           )}
         </div>
-      </div>
-    </Layout>
+    </div>
   );
 }
