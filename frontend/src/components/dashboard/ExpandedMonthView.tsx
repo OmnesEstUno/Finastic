@@ -10,6 +10,7 @@ import {
 import { getCategoryColor } from '../../utils/categories';
 import CategorySelect, { NEW_CATEGORY_SENTINEL } from '../CategorySelect';
 import { INCOME_COLOR, EXPENSE_COLOR } from './constants';
+import NotesCell from './NotesCell';
 
 // ─── Monthly balance: expanded (per-month) view ────────────────────────────
 
@@ -318,6 +319,7 @@ function ExpandedMonthView({
                   <th>Date</th>
                   <th>Type / Category</th>
                   <th>Description</th>
+                  <th style={{ width: 180 }}>Notes</th>
                   <th className="num">Amount</th>
                   <th style={{ width: 80 }}></th>
                 </tr>
@@ -363,6 +365,7 @@ function ExpandedMonthView({
                             onChange={(ev) => setEditDraft({ ...editDraft, description: ev.target.value })}
                           />
                         </td>
+                        <td>{/* Notes edited independently via its own cell */}</td>
                         <td>
                           <input
                             type="number"
@@ -422,6 +425,16 @@ function ExpandedMonthView({
                         )}
                       </td>
                       <td>{e.description}</td>
+                      {e.kind === 'expense' ? (
+                        <td style={{ maxWidth: 180, verticalAlign: 'top', padding: 0 }}>
+                          <NotesCell
+                            value={transactions.find((t) => t.id === e.id)?.notes ?? ''}
+                            onCommit={(notes) => onUpdateTransaction(e.id, { notes })}
+                          />
+                        </td>
+                      ) : (
+                        <td></td>
+                      )}
                       <td className={`num ${e.kind === 'income' ? 'text-success' : 'text-danger'}`}>
                         {e.kind === 'income' ? '+' : ''}{formatCurrency(e.amount)}
                       </td>
