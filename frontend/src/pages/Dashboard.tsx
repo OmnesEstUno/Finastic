@@ -1,15 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Cell,
-} from 'recharts';
-import {
   DndContext,
   DragEndEvent,
   MouseSensor,
@@ -554,7 +544,7 @@ export default function Dashboard() {
                         <th>Category</th>
                         <th className="num">Avg / Month</th>
                         <th className="num">Total</th>
-                        <th style={{ width: 160 }}></th>
+                        <th style={{ width: '50%' }}></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -582,12 +572,13 @@ export default function Dashboard() {
                               <td className="num">{formatCurrency(row.avgPerMonth)}</td>
                               <td className="num">{formatCurrency(row.total)}</td>
                               <td>
-                                <div className="progress-bar-track">
+                                <div className="progress-bar-track" style={{ height: 14 }}>
                                   <div
                                     className="progress-bar-fill"
                                     style={{
                                       width: `${pct}%`,
                                       background: getCategoryColor(row.category),
+                                      height: 14,
                                     }}
                                   />
                                 </div>
@@ -598,43 +589,6 @@ export default function Dashboard() {
                     </tbody>
                   </table>
                 </div>
-
-                {/* Horizontal bar chart */}
-                <ResponsiveContainer width="100%" height={Math.max(250, categoryAverages.length * 36)}>
-                  <BarChart
-                    layout="vertical"
-                    data={categoryAverages.sort((a, b) => b.avgPerMonth - a.avgPerMonth)}
-                    margin={{ top: 4, right: 24, left: 80, bottom: 4 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                    <XAxis
-                      type="number"
-                      tick={{ fill: 'var(--text-muted)', fontSize: 10 }}
-                      axisLine={false}
-                      tickLine={false}
-                      tickFormatter={(v: number) => `$${v >= 1000 ? `${(v / 1000).toFixed(1)}k` : v}`}
-                    />
-                    <YAxis
-                      type="category"
-                      dataKey="category"
-                      tick={{ fill: 'var(--text-secondary)', fontSize: 11 }}
-                      axisLine={false}
-                      tickLine={false}
-                      width={75}
-                    />
-                    <Tooltip
-                      contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, fontSize: '0.8125rem' }}
-                      formatter={(value: number) => [formatCurrency(value), 'Avg/month']}
-                    />
-                    <Bar dataKey="avgPerMonth" name="Avg/month" radius={[0, 3, 3, 0]}>
-                      {categoryAverages
-                        .sort((a, b) => b.avgPerMonth - a.avgPerMonth)
-                        .map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={getCategoryColor(entry.category)} />
-                        ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
               </>
             )}
           </DashboardCard>
