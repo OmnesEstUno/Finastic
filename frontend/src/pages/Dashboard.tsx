@@ -58,6 +58,7 @@ export default function Dashboard() {
   const [expandedCategory, setExpandedCategory] = useState<Category | null>(null);
   const [expandedMonth, setExpandedMonth] = useState<number | null>(null);
   const [expenseYear, setExpenseYear] = useState(new Date().getFullYear());
+  const [incomeYear, setIncomeYear] = useState(new Date().getFullYear());
 
   // Undo toast — populated right after a successful delete
   const [pendingUndo, setPendingUndo] = useState<PendingUndo | null>(null);
@@ -238,7 +239,7 @@ export default function Dashboard() {
   const surplus = totalIncome - totalExpenses;
 
   const monthlyTable = buildMonthlyExpenseTable(transactions, expenseYear);
-  const monthlyBalance = buildMonthlyBalance(transactions, income);
+  const monthlyBalance = buildMonthlyBalance(transactions, income, incomeYear);
   const categoryAverages = buildCategoryAverages(transactions);
   const currentYear = new Date().getFullYear();
   const currentMonth = new Date().getMonth();
@@ -345,24 +346,32 @@ export default function Dashboard() {
         <div className="card">
           <div className="card-header">
             <h2>
-              Income vs. Expenditures — {new Date().getFullYear()}
+              Income vs. Expenditures
               {expandedMonth !== null && (
                 <span style={{ color: 'var(--text-muted)', fontWeight: 400, marginLeft: 8 }}>
                   / {MONTH_NAMES[expandedMonth]}
                 </span>
               )}
             </h2>
-            {expandedMonth !== null && (
-              <button className="btn btn-ghost btn-sm" onClick={() => setExpandedMonth(null)}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polyline points="15 18 9 12 15 6" />
-                </svg>
-                Back to full year
-              </button>
-            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <YearSelector
+                transactions={transactions}
+                incomeEntries={income}
+                value={incomeYear}
+                onChange={(y) => { setIncomeYear(y); setExpandedMonth(null); }}
+              />
+              {expandedMonth !== null && (
+                <button className="btn btn-ghost btn-sm" onClick={() => setExpandedMonth(null)}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <polyline points="15 18 9 12 15 6" />
+                  </svg>
+                  Back to full year
+                </button>
+              )}
+            </div>
           </div>
           {monthlyBalance.length === 0 ? (
-            <EmptyState message={`No data for ${new Date().getFullYear()} yet.`} />
+            <EmptyState message={`No data for ${incomeYear} yet.`} />
           ) : expandedMonth === null ? (
             <MonthlyBalanceView
               monthlyBalance={monthlyBalance}
@@ -372,7 +381,7 @@ export default function Dashboard() {
             <ExpandedMonthView
               transactions={transactions}
               incomeEntries={income}
-              year={new Date().getFullYear()}
+              year={incomeYear}
               month={expandedMonth}
               onDelete={handleDelete}
               onUpdateTransaction={handleUpdateTransaction}

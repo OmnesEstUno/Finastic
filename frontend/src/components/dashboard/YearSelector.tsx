@@ -1,19 +1,28 @@
 import { parseISO } from 'date-fns';
-import { Transaction } from '../../types';
+import { IncomeEntry, Transaction } from '../../types';
 
 interface YearSelectorProps {
   transactions: Transaction[];
+  incomeEntries?: IncomeEntry[];
   value: number;
   onChange: (year: number) => void;
 }
 
-// Renders a <select> of years derived from the transaction data, descending.
+// Renders a <select> of years derived from the data, descending. Pulls
+// from transactions (skipping archived) plus income entries if provided.
 // Always includes the current year even if there's no data for it.
-export default function YearSelector({ transactions, value, onChange }: YearSelectorProps) {
+export default function YearSelector({ transactions, incomeEntries, value, onChange }: YearSelectorProps) {
   const currentYear = new Date().getFullYear();
-  const fromData = new Set(
-    transactions.filter((t) => !t.archived).map((t) => parseISO(t.date).getFullYear()),
-  );
+  const fromData = new Set<number>();
+  for (const t of transactions) {
+    if (t.archived) continue;
+    fromData.add(parseISO(t.date).getFullYear());
+  }
+  if (incomeEntries) {
+    for (const e of incomeEntries) {
+      fromData.add(parseISO(e.date).getFullYear());
+    }
+  }
   fromData.add(currentYear);
   const years = [...fromData].sort((a, b) => b - a);
   return (

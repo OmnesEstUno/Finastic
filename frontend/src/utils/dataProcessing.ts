@@ -150,9 +150,11 @@ export interface MonthlyBalance {
   surplus: number; // signed — negative means deficit
 }
 
-export function buildMonthlyBalance(transactions: Transaction[], incomeEntries: IncomeEntry[]): MonthlyBalance[] {
-  const year = new Date().getFullYear();
-
+export function buildMonthlyBalance(
+  transactions: Transaction[],
+  incomeEntries: IncomeEntry[],
+  year: number = new Date().getFullYear(),
+): MonthlyBalance[] {
   const expenseByMonth = new Array(12).fill(0);
   const incomeByMonth = new Array(12).fill(0);
 
@@ -171,9 +173,11 @@ export function buildMonthlyBalance(transactions: Transaction[], incomeEntries: 
     // Taxes are already tracked as separate transactions
   });
 
-  const currentMonth = new Date().getMonth();
+  // Past years show all 12 months; current year truncates at the current month.
+  const currentYear = new Date().getFullYear();
+  const monthCount = year < currentYear ? 12 : new Date().getMonth() + 1;
 
-  return MONTH_NAMES.slice(0, currentMonth + 1).map((month, i) => ({
+  return MONTH_NAMES.slice(0, monthCount).map((month, i) => ({
     month,
     monthIndex: i,
     income: incomeByMonth[i],
