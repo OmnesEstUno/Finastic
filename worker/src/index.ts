@@ -337,23 +337,34 @@ export default {
 
       // ── Admin: one-time year-partition migration ──
       if (path === '/api/admin/migrate-years' && method === 'POST') {
-        const auth = await authenticateAdmin(request, env, cors);
-        if (auth instanceof Response) return auth;
+        const authResult = await authenticateAdmin(request, env, cors);
+        if (authResult instanceof Response) return authResult;
         if ((await env.FINANCE_KV.get('meta:yearPartitioned')) === 'true') {
           return respond({ error: 'Already year-partitioned.' }, 400, cors);
         }
         const usernames = await getUsernames(env.FINANCE_KV);
         let migrated = 0;
+        let skipped = 0;
+        const failures: Array<{ instanceId: string; error: string }> = [];
         for (const u of usernames) {
           const profile = await getUserProfile(env.FINANCE_KV, u);
           if (!profile) continue;
           for (const id of profile.instanceIds ?? []) {
-            await migrateToYearPartitioned(env.FINANCE_KV, id);
-            migrated++;
+            const flagKey = `meta:yearPartitioned:${id}`;
+            if ((await env.FINANCE_KV.get(flagKey)) === 'true') { skipped++; continue; }
+            try {
+              await migrateToYearPartitioned(env.FINANCE_KV, id);
+              await env.FINANCE_KV.put(flagKey, 'true');
+              migrated++;
+            } catch (err) {
+              failures.push({ instanceId: id, error: (err as Error).message });
+            }
           }
         }
-        await env.FINANCE_KV.put('meta:yearPartitioned', 'true');
-        return respond({ ok: true, migrated }, 200, cors);
+        if (failures.length === 0) {
+          await env.FINANCE_KV.put('meta:yearPartitioned', 'true');
+        }
+        return respond({ ok: failures.length === 0, migrated, skipped, failures }, 200, cors);
       }
 
       // ── Setup Status ──

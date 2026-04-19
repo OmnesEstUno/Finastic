@@ -49,6 +49,13 @@ export async function writeAllYears<T>(
   const prevYears: number[] = prevIndexRaw ? (JSON.parse(prevIndexRaw) as YearIndex).years : [];
   const newYears = [...byYear.keys()].sort((a, b) => a - b);
   const stale = prevYears.filter((y) => !byYear.has(y));
+  if (byYear.size === 0) {
+    await Promise.all([
+      ...stale.map((y) => kv.delete(`${prefix}:${y}`)),
+      kv.delete(`${prefix}:index`),
+    ]);
+    return;
+  }
   await Promise.all([
     ...[...byYear.entries()].map(([y, arr]) => kv.put(`${prefix}:${y}`, JSON.stringify(arr))),
     ...stale.map((y) => kv.delete(`${prefix}:${y}`)),
@@ -125,15 +132,20 @@ export async function updateInAnyYear<T extends { id: string; date: string }>(
       arr[idx] = merged;
       await kv.put(key, JSON.stringify(arr));
     } else {
+      // Write to new shard FIRST (update index if needed)
+      await upsertInYear<T>(kv, prefix, merged);
+      // Then remove from the old shard
       arr.splice(idx, 1);
       if (arr.length === 0) {
         await kv.delete(key);
-        const cleaned = years.filter((x) => x !== y);
-        await kv.put(`${prefix}:index`, JSON.stringify({ years: cleaned }));
+        // Re-read the index to avoid clobbering the new-year entry written by upsertInYear above
+        const currentIndexRaw = await kv.get(`${prefix}:index`);
+        const current = currentIndexRaw ? (JSON.parse(currentIndexRaw) as YearIndex) : { years: [] as number[] };
+        const filtered = current.years.filter((x) => x !== y);
+        await kv.put(`${prefix}:index`, JSON.stringify({ years: filtered }));
       } else {
         await kv.put(key, JSON.stringify(arr));
       }
-      await upsertInYear<T>(kv, prefix, merged);
     }
     return merged;
   }
