@@ -47,7 +47,9 @@ function ExpandedMonthView({
   const [selectedDays, setSelectedDays] = useState<Set<number>>(new Set());
 
   // ── Task 15: category multi-select ────────────────────────────────────────
-  const [selectedCategories, setSelectedCategories] = useState<Set<Category>>(new Set());
+  // null = untouched (inert filter, show all). Any user action moves to a Set —
+  // including an empty set, which means "hide all expenses".
+  const [selectedCategories, setSelectedCategories] = useState<Set<Category> | null>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -55,7 +57,7 @@ function ExpandedMonthView({
   useEffect(() => {
     setSearchQuery('');
     setSelectedDays(new Set());
-    setSelectedCategories(new Set());
+    setSelectedCategories(null);
   }, [year, month]);
 
   // Per-category totals for quick reference above the chronological list
@@ -81,11 +83,14 @@ function ExpandedMonthView({
     ? rawEvents
     : rawEvents.filter((e) => selectedDays.has(e.day));
 
-  // Step 2: category filter
-  const afterCategoryFilter = selectedCategories.size === 0
+  // Step 2: category filter.
+  // null = untouched, inert (income + all expenses pass through).
+  // Set = explicit user choice; income always passes, expenses must be in the set.
+  const afterCategoryFilter = selectedCategories === null
     ? afterDayFilter
     : afterDayFilter.filter((e) => {
-        if (e.kind !== 'expense' || !e.category) return false;
+        if (e.kind !== 'expense') return true; // income always passes
+        if (!e.category) return false;
         return selectedCategories.has(e.category);
       });
 
@@ -206,9 +211,10 @@ function ExpandedMonthView({
                   size="sm"
                   label={`${cat}: ${formatCurrency(total)}`}
                   color={getCategoryColor(cat)}
-                  active={selectedCategories.size === 0 || selectedCategories.has(cat)}
+                  active={selectedCategories === null || selectedCategories.has(cat)}
                   onToggle={() => setSelectedCategories((prev) => {
-                    const next = new Set(prev);
+                    const base = prev ?? new Set(Array.from(categoryTotals.keys()));
+                    const next = new Set(base);
                     if (next.has(cat)) next.delete(cat); else next.add(cat);
                     return next;
                   })}
@@ -217,7 +223,7 @@ function ExpandedMonthView({
             <button
               className="btn btn-ghost btn-sm"
               style={{ padding: '4px 10px', fontSize: '0.75rem' }}
-              onClick={() => setSelectedCategories(new Set([...categoryTotals.keys()]))}
+              onClick={() => setSelectedCategories(new Set(Array.from(categoryTotals.keys())))}
             >
               Select All
             </button>
@@ -281,7 +287,7 @@ function ExpandedMonthView({
             userCategories={userCategories}
             addCustomCategory={addCustomCategory}
             emptyMessage={
-              selectedDays.size > 0 || selectedCategories.size > 0 || searchQuery.trim()
+              selectedDays.size > 0 || selectedCategories !== null || searchQuery.trim()
                 ? 'No entries match the active filters.'
                 : `No activity recorded for ${monthLabel}.`
             }
