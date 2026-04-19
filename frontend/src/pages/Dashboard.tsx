@@ -29,6 +29,7 @@ import {
   AddIncomeInput,
 } from '../api/client';
 import { derivePattern } from '../utils/categories';
+import { parseISO } from 'date-fns';
 import {
   buildMonthlyExpenseTable,
   buildMonthlyBalance,
@@ -100,6 +101,7 @@ export default function Dashboard() {
   const [expenseYear, setExpenseYear] = useState(new Date().getFullYear());
   const [expenseRange, setExpenseRange] = useState<CustomDateRange | null>(null);
   const [avgRange, setAvgRange] = useState<CustomDateRange | null>(null);
+  const [avgYear, setAvgYear] = useState(new Date().getFullYear());
   const [incomeYear, setIncomeYear] = useState(new Date().getFullYear());
 
   // Card layout state: order + which cards are minimized. Persisted per
@@ -385,10 +387,11 @@ export default function Dashboard() {
   const monthlyTable = monthlyResult.rows;
   const monthColumns = monthlyResult.columns;
   const monthlyBalance = buildMonthlyBalance(transactions, income, incomeYear);
-  const categoryAverages = buildCategoryAverages(transactions);
   const categoryAveragesRanged = avgRange
     ? buildCategoryAverages(filterByRange(transactions, avgRange))
-    : categoryAverages;
+    : buildCategoryAverages(
+        transactions.filter((t) => parseISO(t.date).getFullYear() === avgYear),
+      );
 
   // Map each card id to its rendered node. Rendered inside a SortableContext
   // below in the saved order.
@@ -578,7 +581,7 @@ export default function Dashboard() {
               <>
                 <YearSelector
                   transactions={transactions}
-                  value={avgRange ? CUSTOM_RANGE : new Date().getFullYear()}
+                  value={avgRange ? CUSTOM_RANGE : avgYear}
                   onChange={(y) => {
                     if (y === CUSTOM_RANGE) {
                       const today = new Date();
@@ -588,6 +591,7 @@ export default function Dashboard() {
                       });
                     } else {
                       setAvgRange(null);
+                      setAvgYear(y);
                     }
                   }}
                   customOption
