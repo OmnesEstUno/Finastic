@@ -5,11 +5,14 @@ import { CustomDateRange } from '../types';
 interface DateRangePickerProps {
   value: CustomDateRange | null;
   onChange: (range: CustomDateRange) => void;
-  maxSpanYears?: number;
+  minDate?: string; // yyyy-mm-dd; earliest selectable date (passed to <input min>)
+  maxDate?: string; // yyyy-mm-dd; latest selectable date (passed to <input max>)
 }
 
-// Two date inputs + Apply, with a configurable max span (default 10 years).
-export default function DateRangePicker({ value, onChange, maxSpanYears = 10 }: DateRangePickerProps) {
+// Two date inputs + Apply. The browser's native date picker enforces the
+// min/max bounds (greys out dates outside the range), so apply-time checks
+// only need to guard start < end and non-empty values.
+export default function DateRangePicker({ value, onChange, minDate, maxDate }: DateRangePickerProps) {
   const [start, setStart] = useState(value?.start ?? '');
   const [end, setEnd] = useState(value?.end ?? '');
   const [error, setError] = useState('');
@@ -23,11 +26,9 @@ export default function DateRangePicker({ value, onChange, maxSpanYears = 10 }: 
 
   function apply() {
     if (!start || !end) { setError('Both dates required.'); return; }
-    const startDate = parseISO(start);
-    const endDate = parseISO(end);
-    if (startDate > endDate) { setError('Start must be before end.'); return; }
-    const spanYears = (endDate.getTime() - startDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000);
-    if (spanYears > maxSpanYears) { setError(`Range exceeds ${maxSpanYears}-year limit.`); return; }
+    if (parseISO(start) > parseISO(end)) { setError('Start must be before end.'); return; }
+    if (minDate && start < minDate) { setError('Start is before the earliest data.'); return; }
+    if (maxDate && end > maxDate) { setError('End cannot be in the future.'); return; }
     setError('');
     onChange({ start, end });
   }
@@ -38,6 +39,8 @@ export default function DateRangePicker({ value, onChange, maxSpanYears = 10 }: 
         type="date"
         className="input"
         style={{ padding: '4px 8px', width: 150 }}
+        min={minDate}
+        max={maxDate}
         value={start}
         onChange={(e) => setStart(e.target.value)}
       />
@@ -46,6 +49,8 @@ export default function DateRangePicker({ value, onChange, maxSpanYears = 10 }: 
         type="date"
         className="input"
         style={{ padding: '4px 8px', width: 150 }}
+        min={minDate}
+        max={maxDate}
         value={end}
         onChange={(e) => setEnd(e.target.value)}
       />

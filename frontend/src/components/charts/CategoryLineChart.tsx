@@ -182,11 +182,31 @@ export default function CategoryLineChart({ transactions, timeRange, customRange
         )}
       </div>
 
-      {timeRange === 'custom' && onCustomRangeChange && (
-        <div style={{ marginBottom: 16 }}>
-          <DateRangePicker value={customRange ?? null} onChange={onCustomRangeChange} maxSpanYears={10} />
-        </div>
-      )}
+      {timeRange === 'custom' && onCustomRangeChange && (() => {
+        // Bounds: latest = today; earliest = max(10 years ago, oldest non-archived
+        // transaction date). If there's no data, fall back to 10 years ago.
+        const toISODate = (d: Date) => d.toISOString().slice(0, 10);
+        const today = new Date();
+        const tenYearsAgo = new Date(today.getFullYear() - 10, today.getMonth(), today.getDate());
+        const activeDates = transactions
+          .filter((t) => !t.archived)
+          .map((t) => t.date)
+          .sort();
+        const oldestStr = activeDates[0];
+        const tenYearsAgoStr = toISODate(tenYearsAgo);
+        const minDate = oldestStr && oldestStr > tenYearsAgoStr ? oldestStr : tenYearsAgoStr;
+        const maxDate = toISODate(today);
+        return (
+          <div style={{ marginBottom: 16 }}>
+            <DateRangePicker
+              value={customRange ?? null}
+              onChange={onCustomRangeChange}
+              minDate={minDate}
+              maxDate={maxDate}
+            />
+          </div>
+        );
+      })()}
 
       <p className="text-xs text-muted" style={{ marginBottom: 16 }}>
         Tip: Click a chip to show/hide a category. Click a data point to isolate it; click more points to compare.
