@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import DatePicker from 'react-datepicker';
 import { format, parseISO } from 'date-fns';
 import { CustomDateRange } from '../types';
-import 'react-datepicker/dist/react-datepicker.css';
 
 interface DateRangePickerProps {
   value: CustomDateRange | null;
@@ -13,6 +12,90 @@ interface DateRangePickerProps {
 
 const toISO = (d: Date) => format(d, 'yyyy-MM-dd');
 const fromISO = (s: string | null | undefined) => (s ? parseISO(s) : null);
+
+const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// Renders a custom header for react-datepicker that limits the month and
+// year <select> dropdowns to only values inside [min, max]. Without this
+// the dropdowns would show all 12 months and a wide-open year range even
+// when those picks fall outside the selectable window.
+interface CustomHeaderProps {
+  date: Date;
+  changeYear: (year: number) => void;
+  changeMonth: (month: number) => void;
+  decreaseMonth: () => void;
+  increaseMonth: () => void;
+  prevMonthButtonDisabled: boolean;
+  nextMonthButtonDisabled: boolean;
+  min: Date | null;
+  max: Date | null;
+}
+
+function CustomHeader({
+  date, changeYear, changeMonth, decreaseMonth, increaseMonth,
+  prevMonthButtonDisabled, nextMonthButtonDisabled, min, max,
+}: CustomHeaderProps) {
+  const viewedYear = date.getFullYear();
+  const viewedMonth = date.getMonth();
+
+  const minYear = min ? min.getFullYear() : viewedYear - 10;
+  const maxYear = max ? max.getFullYear() : viewedYear + 10;
+  const years: number[] = [];
+  for (let y = minYear; y <= maxYear; y++) years.push(y);
+
+  // Months available depend on how the viewed year compares to the window edges.
+  const firstMonthAllowed =
+    min && viewedYear === min.getFullYear() ? min.getMonth() : 0;
+  const lastMonthAllowed =
+    max && viewedYear === max.getFullYear() ? max.getMonth() : 11;
+  const months: number[] = [];
+  for (let m = firstMonthAllowed; m <= lastMonthAllowed; m++) months.push(m);
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 8px' }}>
+      <button
+        type="button"
+        className="react-datepicker__navigation react-datepicker__navigation--previous"
+        onClick={decreaseMonth}
+        disabled={prevMonthButtonDisabled}
+        aria-label="Previous month"
+        style={{ position: 'static' }}
+      >
+        <span className="react-datepicker__navigation-icon react-datepicker__navigation-icon--previous" />
+      </button>
+      <div style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+        <select
+          className="react-datepicker__month-select"
+          value={viewedMonth}
+          onChange={(e) => changeMonth(Number(e.target.value))}
+        >
+          {months.map((m) => (
+            <option key={m} value={m}>{MONTH_LABELS[m]}</option>
+          ))}
+        </select>
+        <select
+          className="react-datepicker__year-select"
+          value={viewedYear}
+          onChange={(e) => changeYear(Number(e.target.value))}
+        >
+          {years.map((y) => (
+            <option key={y} value={y}>{y}</option>
+          ))}
+        </select>
+      </div>
+      <button
+        type="button"
+        className="react-datepicker__navigation react-datepicker__navigation--next"
+        onClick={increaseMonth}
+        disabled={nextMonthButtonDisabled}
+        aria-label="Next month"
+        style={{ position: 'static' }}
+      >
+        <span className="react-datepicker__navigation-icon react-datepicker__navigation-icon--next" />
+      </button>
+    </div>
+  );
+}
 
 // react-datepicker with month + year dropdowns in the header.
 // Clicking either dropdown opens a list; selecting a value updates the
@@ -47,12 +130,10 @@ export default function DateRangePicker({ value, onChange, minDate, maxDate }: D
         minDate={min ?? undefined}
         maxDate={max ?? undefined}
         dateFormat="yyyy-MM-dd"
-        showMonthDropdown
-        showYearDropdown
-        dropdownMode="select"
         placeholderText="Start date"
         className="input"
         wrapperClassName="date-range-wrapper"
+        renderCustomHeader={(props) => <CustomHeader {...props} min={min} max={max} />}
       />
       <span style={{ color: 'var(--text-muted)' }}>→</span>
       <DatePicker
@@ -61,12 +142,10 @@ export default function DateRangePicker({ value, onChange, minDate, maxDate }: D
         minDate={min ?? undefined}
         maxDate={max ?? undefined}
         dateFormat="yyyy-MM-dd"
-        showMonthDropdown
-        showYearDropdown
-        dropdownMode="select"
         placeholderText="End date"
         className="input"
         wrapperClassName="date-range-wrapper"
+        renderCustomHeader={(props) => <CustomHeader {...props} min={min} max={max} />}
       />
       <button type="button" className="btn btn-sm btn-primary" onClick={apply}>Apply</button>
       {error && <span className="text-xs text-danger">{error}</span>}

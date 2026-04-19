@@ -1,6 +1,8 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import * as pdfjsLib from 'pdfjs-dist';
+// Import third-party CSS first so our overrides in index.css win.
+import 'react-datepicker/dist/react-datepicker.css';
 import './index.css';
 import App from './App';
 
