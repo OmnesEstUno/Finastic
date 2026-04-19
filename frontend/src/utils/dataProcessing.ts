@@ -115,8 +115,11 @@ export function buildMonthlyExpenseTable(
   transactions: Transaction[],
   year: number = new Date().getFullYear(),
 ): MonthlyExpenseRow[] {
-  const yearStart = startOfYear(new Date(year, 0, 1));
-  const yearEnd = new Date(year, 11, 31, 23, 59, 59);
+  // Passing 0 (ALL_YEARS sentinel) aggregates every year's transactions into
+  // the 12 calendar-month columns (so "January" becomes "all Januaries summed").
+  const allTime = year === 0;
+  const yearStart = allTime ? null : startOfYear(new Date(year, 0, 1));
+  const yearEnd = allTime ? null : new Date(year, 11, 31, 23, 59, 59);
 
   // Derive categories from the data so custom categories appear automatically.
   const map = new Map<Category, number[]>();
@@ -125,7 +128,7 @@ export function buildMonthlyExpenseTable(
     if (t.archived) return;
     if (t.type !== 'expense') return;
     const d = parseISO(t.date);
-    if (!isWithinInterval(d, { start: yearStart, end: yearEnd })) return;
+    if (yearStart && yearEnd && !isWithinInterval(d, { start: yearStart, end: yearEnd })) return;
     const month = d.getMonth(); // 0-indexed
     if (!map.has(t.category)) map.set(t.category, new Array(12).fill(0));
     map.get(t.category)![month] += Math.abs(t.amount);

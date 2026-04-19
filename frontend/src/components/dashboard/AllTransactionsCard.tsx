@@ -3,7 +3,7 @@ import { parseISO } from 'date-fns';
 import { Transaction, UserCategories } from '../../types';
 import { TransactionUpdate } from '../../api/client';
 import TransactionDrillDown, { DrillDownEvent } from './TransactionDrillDown';
-import YearSelector from './YearSelector';
+import YearSelector, { ALL_YEARS } from './YearSelector';
 
 interface AllTransactionsCardProps {
   transactions: Transaction[];
@@ -29,7 +29,7 @@ export default function AllTransactionsCard({
     const q = searchQuery.trim().toLowerCase();
     return transactions
       .filter((t) => !t.archived && t.type === 'expense')
-      .filter((t) => parseISO(t.date).getFullYear() === year)
+      .filter((t) => year === ALL_YEARS || parseISO(t.date).getFullYear() === year)
       .filter((t) => (q ? t.description.toLowerCase().includes(q) : true))
       .sort((a, b) => (a.date < b.date ? 1 : -1))
       .map((t) => ({
@@ -56,7 +56,7 @@ export default function AllTransactionsCard({
     <div className="card">
       <div className="card-header">
         <h2>All Transactions</h2>
-        <YearSelector transactions={transactions} value={year} onChange={setYear} />
+        <YearSelector transactions={transactions} value={year} onChange={setYear} allowAllTime />
       </div>
       <input
         type="text"
@@ -73,7 +73,11 @@ export default function AllTransactionsCard({
         onUpdateTransaction={onUpdateTransaction}
         userCategories={userCategories}
         addCustomCategory={addCustomCategory}
-        emptyMessage={searchQuery.trim() ? `No transactions matching "${searchQuery}" in ${year}.` : `No transactions in ${year}.`}
+        emptyMessage={
+          searchQuery.trim()
+            ? `No transactions matching "${searchQuery}"${year === ALL_YEARS ? '' : ` in ${year}`}.`
+            : year === ALL_YEARS ? 'No transactions yet.' : `No transactions in ${year}.`
+        }
         isActiveOwner={isActiveOwner}
       />
     </div>
