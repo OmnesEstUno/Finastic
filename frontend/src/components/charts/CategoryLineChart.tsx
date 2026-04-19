@@ -23,14 +23,6 @@ interface Props {
   onCustomRangeChange?: (range: CustomDateRange) => void;
 }
 
-const TIME_RANGE_LABELS: Record<TimeRange, string> = {
-  week: 'Past Week',
-  month: 'Past Month',
-  '3month': 'Past 3 Months',
-  year: 'Past 1 Year',
-  custom: 'Custom Range',
-};
-
 function CustomTooltip({ active, payload, label, selectedSet }: TooltipProps<number, string> & { selectedSet: Set<Category> }) {
   if (!active || !payload || payload.length === 0) return null;
 
@@ -283,5 +275,4 @@ export default function CategoryLineChart({ transactions, timeRange, customRange
   );
 }
 
-export { TIME_RANGE_LABELS };
 export type { Props as CategoryLineChartProps };

@@ -1,23 +1,33 @@
 import { TimeRange } from '../../types';
-import { TIME_RANGE_LABELS } from '../charts/CategoryLineChart';
 
-interface Props {
+const TIME_RANGE_LABELS: Record<TimeRange, string> = {
+  week: 'Past Week',
+  month: 'Past Month',
+  '3month': 'Past 3 Months',
+  year: 'Past 1 Year',
+  custom: 'Custom Range',
+};
+
+interface TimeRangeSelectorProps {
   value: TimeRange;
-  onChange: (r: TimeRange) => void;
+  onChange: (range: TimeRange) => void;
 }
 
-export default function TimeRangeSelector({ value, onChange }: Props) {
+export default function TimeRangeSelector({ value, onChange }: TimeRangeSelectorProps) {
   return (
     <div className="tabs">
-      {(Object.keys(TIME_RANGE_LABELS) as TimeRange[]).map((r) => (
+      {(Object.keys(TIME_RANGE_LABELS) as TimeRange[]).map((range) => (
         <button
-          key={r}
-          className={`tab ${value === r ? 'active' : ''}`}
-          onClick={() => onChange(r)}
+          key={range}
+          type="button"
+          className={`tab ${value === range ? 'active' : ''}`}
+          onClick={() => onChange(range)}
         >
-          {TIME_RANGE_LABELS[r]}
+          {TIME_RANGE_LABELS[range]}
         </button>
       ))}
     </div>
   );
 }
+
+export { TIME_RANGE_LABELS };
