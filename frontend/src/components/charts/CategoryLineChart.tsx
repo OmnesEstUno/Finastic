@@ -160,57 +160,55 @@ export default function CategoryLineChart({ transactions, timeRange, customRange
       })()}
 
       {/* Legend with CheckmarkToggle chips */}
-      <div
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: '8px 12px',
-          marginBottom: 12,
-          alignItems: 'center',
-        }}
-      >
-        {visibleCategories.map((cat) => {
-          const isActive = activeCategories.has(cat);
-          return (
-            <div
-              key={cat}
-              style={{ opacity: isFaded(cat) ? 0.4 : 1, transition: 'opacity 0.15s' }}
-            >
-              <CheckmarkToggle
-                label={cat}
-                color={getCategoryColor(cat)}
-                active={isActive}
-                size="sm"
-                onToggle={() => toggle(cat)}
-                onHover={() => setHoveredLine(cat)}
-                onLeave={() => setHoveredLine(null)}
-              />
-            </div>
-          );
-        })}
-        <button
-          className="btn btn-ghost btn-sm"
-          style={{ padding: '4px 10px', fontSize: '0.75rem' }}
-          onClick={() => setActiveCategories(new Set(visibleCategories))}
-        >
-          Select All
-        </button>
-        <button
-          className="btn btn-ghost btn-sm"
-          style={{ padding: '4px 10px', fontSize: '0.75rem' }}
-          onClick={() => setActiveCategories(new Set())}
-        >
-          Deselect All
-        </button>
-        {selectedSet.size > 0 && (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+        {/* Row 1: chips */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 12px', alignItems: 'center' }}>
+          {visibleCategories.map((cat) => {
+            const isActive = activeCategories.has(cat);
+            return (
+              <div
+                key={cat}
+                style={{ opacity: isFaded(cat) ? 0.4 : 1, transition: 'opacity 0.15s' }}
+              >
+                <CheckmarkToggle
+                  label={cat}
+                  color={getCategoryColor(cat)}
+                  active={isActive}
+                  size="sm"
+                  onToggle={() => toggle(cat)}
+                  onHover={() => setHoveredLine(cat)}
+                  onLeave={() => setHoveredLine(null)}
+                />
+              </div>
+            );
+          })}
+        </div>
+        {/* Row 2: action buttons */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
           <button
             className="btn btn-ghost btn-sm"
-            style={{ marginLeft: 'auto', padding: '4px 10px', fontSize: '0.75rem' }}
-            onClick={() => setSelectedSet(new Set())}
+            style={{ padding: '4px 10px', fontSize: '0.75rem' }}
+            onClick={() => setActiveCategories(new Set(visibleCategories))}
           >
-            Clear selection
+            Select All
           </button>
-        )}
+          <button
+            className="btn btn-ghost btn-sm"
+            style={{ padding: '4px 10px', fontSize: '0.75rem' }}
+            onClick={() => setActiveCategories(new Set())}
+          >
+            Deselect All
+          </button>
+          {selectedSet.size > 0 && (
+            <button
+              className="btn btn-ghost btn-sm"
+              style={{ marginLeft: 'auto', padding: '4px 10px', fontSize: '0.75rem' }}
+              onClick={() => setSelectedSet(new Set())}
+            >
+              Clear selection
+            </button>
+          )}
+        </div>
       </div>
 
       {activeCategories.size === 0 ? (
