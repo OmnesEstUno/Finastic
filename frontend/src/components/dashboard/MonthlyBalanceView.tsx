@@ -1,9 +1,9 @@
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
 import { formatCurrency } from '../../utils/dataProcessing';
 import {
-  SURPLUS_COLOR, DEFICIT_COLOR, INCOME_COLOR, EXPENSE_COLOR, formatAxisCurrency,
+  INCOME_COLOR, EXPENSE_COLOR, formatAxisCurrency,
 } from './constants';
 
 interface MonthlyBalanceViewProps {
@@ -92,32 +92,17 @@ function MonthlyBalanceView({ monthlyBalance, onMonthClick }: MonthlyBalanceView
           <Tooltip
             contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, fontSize: '0.8125rem' }}
             cursor={{ fill: 'rgba(255,255,255,0.04)' }}
-            formatter={(value: number, name: string) => {
-              // Relabel the surplus bar as "Deficit" when the value is negative
-              if (name === 'Surplus' && value < 0) return [formatCurrency(value), 'Deficit'];
-              return [formatCurrency(value), name];
-            }}
+            formatter={(value: number, name: string) => [formatCurrency(value), name]}
           />
           <Legend
             wrapperStyle={{ fontSize: '0.8125rem', color: 'var(--text-secondary)' }}
             payload={[
               { value: 'Income', type: 'square', color: INCOME_COLOR, id: 'income' },
               { value: 'Expenses', type: 'square', color: EXPENSE_COLOR, id: 'expenses' },
-              { value: 'Surplus', type: 'square', color: SURPLUS_COLOR, id: 'surplus' },
-              { value: 'Deficit', type: 'square', color: DEFICIT_COLOR, id: 'deficit' },
             ]}
           />
           <Bar dataKey="income" name="Income" fill={INCOME_COLOR} radius={[3, 3, 0, 0]} />
           <Bar dataKey="expenses" name="Expenses" fill={EXPENSE_COLOR} radius={[3, 3, 0, 0]} />
-          <Bar dataKey="surplus" name="Surplus" radius={[3, 3, 0, 0]}>
-            {monthlyBalance.map((entry, index) => (
-              <Cell
-                key={`cell-${index}`}
-                fill={entry.surplus >= 0 ? SURPLUS_COLOR : DEFICIT_COLOR}
-                fillOpacity={0.55}
-              />
-            ))}
-          </Bar>
         </BarChart>
       </ResponsiveContainer>
     </>

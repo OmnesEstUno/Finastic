@@ -376,6 +376,9 @@ a:hover { color: var(--accent-hover); }
   white-space: nowrap;
 }
 
+/* ─── CheckmarkToggle ────────────────────────────────────────────────────── */
+.checkmark-toggle:hover { filter: brightness(1.2); }
+
 /* ─── Login Page ─────────────────────────────────────────────────────────── */
 .login-page {
   min-height: 100vh;
