@@ -18,16 +18,30 @@ export default function NotesCell({ value, onCommit, placeholder = 'Add a noteâ€
   const taRef = useRef<HTMLTextAreaElement | null>(null);
 
   if (!editing) {
+    if (value) {
+      return (
+        <div
+          className="notes-field notes-idle"
+          title={value}
+          onClick={() => { setDraft(value); setEditing(true); }}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setDraft(value); setEditing(true); } }}
+        >
+          {value}
+        </div>
+      );
+    }
     return (
       <div
-        className={value ? 'notes-field notes-idle' : 'notes-field notes-idle'}
-        title={value || placeholder}
+        className="notes-field notes-placeholder"
+        title={placeholder}
         onClick={() => { setDraft(value); setEditing(true); }}
         role="button"
         tabIndex={0}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setDraft(value); setEditing(true); } }}
       >
-        {value || <span className="notes-placeholder">{placeholder}</span>}
+        {placeholder}
       </div>
     );
   }
