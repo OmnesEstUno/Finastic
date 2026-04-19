@@ -19,6 +19,13 @@ import {
 } from './crypto';
 import { migrateSingleUserToMultiTenant, createDefaultInstance, instanceMetaKey } from './migrations';
 import { createInvite, verifyInvite, markInviteUsed, listInvites, deleteInvite } from './invites';
+import {
+  createWorkspaceInvite,
+  verifyWorkspaceInvite,
+  markWorkspaceInviteUsed,
+  listWorkspaceInvites,
+  deleteWorkspaceInvite,
+} from './workspace-invites';
 
 export interface Env {
   FINANCE_KV: KVNamespace;
@@ -101,6 +108,21 @@ async function authenticateAdmin(request: Request, env: Env, cors: Record<string
   if (!auth) return respond({ error: 'Unauthorized' }, 401, cors);
   if (auth.username !== 'admin') return respond({ error: 'Forbidden' }, 403, cors);
   return auth;
+}
+
+async function authenticateInstanceOwner(
+  request: Request,
+  env: Env,
+  instanceId: string,
+  cors: Record<string, string>,
+): Promise<{ auth: AuthContext; inst: Instance } | Response> {
+  const auth = await authenticate(request, env);
+  if (!auth) return respond({ error: 'Unauthorized' }, 401, cors);
+  const raw = await env.FINANCE_KV.get(instanceMetaKey(instanceId));
+  if (!raw) return respond({ error: 'Not found.' }, 404, cors);
+  const inst = JSON.parse(raw) as Instance;
+  if (inst.owner !== auth.username) return respond({ error: 'Only the owner can do this.' }, 403, cors);
+  return { auth, inst };
 }
 
 // ─── Username helpers ─────────────────────────────────────────────────────────
@@ -541,7 +563,7 @@ export default {
           const raw = await env.FINANCE_KV.get(instanceMetaKey(id));
           if (!raw) return respond({ error: 'Not found.' }, 404, cors);
           const inst = JSON.parse(raw) as Instance;
-          if (!inst.members.includes(username)) return respond({ error: 'Forbidden.' }, 403, cors);
+          if (inst.owner !== username) return respond({ error: 'Only the owner can rename.' }, 403, cors);
           inst.name = trimmed;
           await env.FINANCE_KV.put(instanceMetaKey(id), JSON.stringify(inst));
           return respond(inst, 200, cors);
@@ -585,38 +607,20 @@ export default {
           return respond({ ok: true }, 200, cors);
         }
 
-        // Add member (owner only)
-        if ((m = path.match(/^\/api\/instances\/([^/]+)\/members$/)) && method === 'POST') {
-          const id = m[1];
-          const body = await request.json() as { username?: string };
-          const addMember = (body.username ?? '').trim().toLowerCase();
-          const raw = await env.FINANCE_KV.get(instanceMetaKey(id));
-          if (!raw) return respond({ error: 'Not found.' }, 404, cors);
-          const inst = JSON.parse(raw) as Instance;
-          if (inst.owner !== username) return respond({ error: 'Only the owner can share.' }, 403, cors);
-          const known = await getUsernames(env.FINANCE_KV);
-          if (!known.includes(addMember)) return respond({ error: 'Unknown user.' }, 400, cors);
-          if (!inst.members.includes(addMember)) {
-            inst.members.push(addMember);
-            await env.FINANCE_KV.put(instanceMetaKey(id), JSON.stringify(inst));
-            const memberProfile = await getUserProfile(env.FINANCE_KV, addMember);
-            if (!memberProfile) return respond({ error: 'User profile not found.' }, 500, cors);
-            memberProfile.instanceIds = [...(memberProfile.instanceIds ?? []), id];
-            if (!memberProfile.activeInstanceId) memberProfile.activeInstanceId = id;
-            await saveUserProfile(env.FINANCE_KV, addMember, memberProfile);
-          }
-          return respond(inst, 200, cors);
-        }
-
-        // Remove member (owner only)
+        // Remove member (owner, or self-removal)
         if ((m = path.match(/^\/api\/instances\/([^/]+)\/members\/([^/]+)$/)) && method === 'DELETE') {
           const id = m[1];
           const memberToRemove = m[2].toLowerCase();
           const raw = await env.FINANCE_KV.get(instanceMetaKey(id));
           if (!raw) return respond({ error: 'Not found.' }, 404, cors);
           const inst = JSON.parse(raw) as Instance;
-          if (inst.owner !== username) return respond({ error: 'Only the owner can modify members.' }, 403, cors);
-          if (inst.owner === memberToRemove) return respond({ error: 'Cannot remove the owner.' }, 400, cors);
+          const isOwner = inst.owner === username;
+          const isSelfRemoval = username === memberToRemove;
+          if (!isOwner && !isSelfRemoval) return respond({ error: 'Only the owner can modify members.' }, 403, cors);
+          if (inst.owner === memberToRemove) {
+            if (isSelfRemoval) return respond({ error: 'Owner cannot leave their own workspace; delete it instead.' }, 400, cors);
+            return respond({ error: 'Cannot remove the owner.' }, 400, cors);
+          }
           inst.members = inst.members.filter((u) => u !== memberToRemove);
           await env.FINANCE_KV.put(instanceMetaKey(id), JSON.stringify(inst));
           const p = await getUserProfile(env.FINANCE_KV, memberToRemove);
@@ -625,6 +629,86 @@ export default {
           if (p.activeInstanceId === id) p.activeInstanceId = p.instanceIds[0] ?? null;
           await saveUserProfile(env.FINANCE_KV, memberToRemove, p);
           return respond(inst, 200, cors);
+        }
+      }
+
+      // ── Workspace Invite endpoints ──
+
+      // Accept workspace invite (any authenticated user)
+      if (path === '/api/instances/invites/accept' && method === 'POST') {
+        const body = await request.json() as { token?: string };
+        const token = (body.token ?? '').trim();
+        if (!token) return respond({ error: 'Token required.' }, 400, cors);
+        // C4: admin cannot join workspaces
+        if (auth.username === 'admin') return respond({ error: 'Admin cannot join workspaces.' }, 400, cors);
+        const verified = await verifyWorkspaceInvite(env.FINANCE_KV, token, env.JWT_SECRET);
+        if (!verified.ok) return respond({ error: `Invite rejected: ${verified.reason}` }, 400, cors);
+        const { id: inviteId, record } = verified;
+        const instRaw = await env.FINANCE_KV.get(instanceMetaKey(record.instanceId));
+        if (!instRaw) return respond({ error: 'Workspace no longer exists.' }, 404, cors);
+        const inst = JSON.parse(instRaw) as Instance;
+        if (inst.members.includes(auth.username)) return respond({ error: 'Already a member.' }, 400, cors);
+        inst.members.push(auth.username);
+        await env.FINANCE_KV.put(instanceMetaKey(record.instanceId), JSON.stringify(inst));
+        const memberProfile = await getUserProfile(env.FINANCE_KV, auth.username);
+        if (!memberProfile) return respond({ error: 'User profile not found.' }, 500, cors);
+        memberProfile.instanceIds = [...(memberProfile.instanceIds ?? []), record.instanceId];
+        if (!memberProfile.activeInstanceId) memberProfile.activeInstanceId = record.instanceId;
+        await saveUserProfile(env.FINANCE_KV, auth.username, memberProfile);
+        await markWorkspaceInviteUsed(env.FINANCE_KV, inviteId, auth.username);
+        return respond(inst, 200, cors);
+      }
+
+      // Get workspace invite metadata (any authenticated user, no mutation)
+      if (path.startsWith('/api/instances/invites/meta') && method === 'GET') {
+        const token = url.searchParams.get('token') ?? '';
+        if (!token) return respond({ error: 'Token required.' }, 400, cors);
+        const verified = await verifyWorkspaceInvite(env.FINANCE_KV, token, env.JWT_SECRET);
+        if (!verified.ok) return respond({ error: `Invite invalid: ${verified.reason}` }, 400, cors);
+        const { record } = verified;
+        const instRaw = await env.FINANCE_KV.get(instanceMetaKey(record.instanceId));
+        if (!instRaw) return respond({ error: 'Workspace no longer exists.' }, 404, cors);
+        const inst = JSON.parse(instRaw) as Instance;
+        return respond({
+          instanceName: inst.name,
+          ownerUsername: inst.owner,
+          expiresAt: record.expiresAt,
+          usedBy: record.usedBy,
+          alreadyMember: inst.members.includes(auth.username),
+        }, 200, cors);
+      }
+
+      {
+        let wm: RegExpMatchArray | null;
+
+        // Create workspace invite (owner only)
+        if ((wm = path.match(/^\/api\/instances\/([^/]+)\/invites$/)) && method === 'POST') {
+          const ownerCheck = await authenticateInstanceOwner(request, env, wm[1], cors);
+          if (ownerCheck instanceof Response) return ownerCheck;
+          const result = await createWorkspaceInvite(env.FINANCE_KV, wm[1], ownerCheck.auth.username, env.JWT_SECRET);
+          return respond(result, 200, cors);
+        }
+
+        // List workspace invites (owner only)
+        if ((wm = path.match(/^\/api\/instances\/([^/]+)\/invites$/)) && method === 'GET') {
+          const ownerCheck = await authenticateInstanceOwner(request, env, wm[1], cors);
+          if (ownerCheck instanceof Response) return ownerCheck;
+          const invites = await listWorkspaceInvites(env.FINANCE_KV, wm[1], env.JWT_SECRET);
+          return respond({ invites }, 200, cors);
+        }
+
+        // Delete workspace invite (owner only)
+        if ((wm = path.match(/^\/api\/instances\/([^/]+)\/invites\/([^/]+)$/)) && method === 'DELETE') {
+          const ownerCheck = await authenticateInstanceOwner(request, env, wm[1], cors);
+          if (ownerCheck instanceof Response) return ownerCheck;
+          const inviteId = wm[2];
+          // Verify the invite belongs to this instance before deletion
+          const raw = await env.FINANCE_KV.get(`workspace-invites:${inviteId}`);
+          if (!raw) return respond({ error: 'Invite not found.' }, 404, cors);
+          const inviteRecord = JSON.parse(raw);
+          if (inviteRecord.instanceId !== wm[1]) return respond({ error: 'Invite does not belong to this workspace.' }, 403, cors);
+          await deleteWorkspaceInvite(env.FINANCE_KV, inviteId);
+          return respond({ ok: true }, 200, cors);
         }
       }
 

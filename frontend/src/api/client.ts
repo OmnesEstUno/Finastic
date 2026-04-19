@@ -168,10 +168,6 @@ export async function deleteInstance(id: string): Promise<void> {
   await request(`/api/instances/${id}`, { method: 'DELETE' });
 }
 
-export async function addInstanceMember(id: string, username: string): Promise<Instance> {
-  return request(`/api/instances/${id}/members`, { method: 'POST', body: JSON.stringify({ username }) });
-}
-
 export async function removeInstanceMember(id: string, username: string): Promise<Instance> {
   return request(`/api/instances/${id}/members/${encodeURIComponent(username)}`, { method: 'DELETE' });
 }
@@ -328,4 +324,30 @@ export async function listInvites(): Promise<{ invites: InviteSummary[] }> {
 }
 export async function deleteInvite(id: string): Promise<{ ok: true }> {
   return request(`/api/admin/invites/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+// ─── Workspace Invites ────────────────────────────────────────────────────────
+
+export interface WorkspaceInviteSummary {
+  id: string;
+  expiresAt: number;
+  createdAt: number;
+  usedBy: string | null;
+  token: string;
+}
+
+export async function createWorkspaceInvite(instanceId: string): Promise<{ id: string; token: string; expiresAt: number }> {
+  return request(`/api/instances/${instanceId}/invites`, { method: 'POST' });
+}
+export async function listWorkspaceInvites(instanceId: string): Promise<{ invites: WorkspaceInviteSummary[] }> {
+  return request(`/api/instances/${instanceId}/invites`);
+}
+export async function deleteWorkspaceInvite(instanceId: string, inviteId: string): Promise<{ ok: true }> {
+  return request(`/api/instances/${instanceId}/invites/${encodeURIComponent(inviteId)}`, { method: 'DELETE' });
+}
+export async function acceptWorkspaceInvite(token: string): Promise<{ id: string; name: string; owner: string; members: string[]; createdAt: string }> {
+  return request('/api/instances/invites/accept', { method: 'POST', body: JSON.stringify({ token }) });
+}
+export async function getWorkspaceInviteMeta(token: string): Promise<{ instanceName: string; ownerUsername: string; expiresAt: number; usedBy: string | null; alreadyMember: boolean }> {
+  return request(`/api/instances/invites/meta?token=${encodeURIComponent(token)}`);
 }

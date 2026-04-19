@@ -461,7 +461,7 @@ a:hover { color: var(--accent-hover); }
   align-self: flex-start;
   max-height: calc(100vh - 56px);
   overflow-y: auto;
-  width: 200px;
+  width: 150px;
   flex-shrink: 0;
   padding: 16px 0 16px 0;
   display: flex;
@@ -471,8 +471,8 @@ a:hover { color: var(--accent-hover); }
 
 .workspace-tab {
   clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%);
-  padding: 10px 24px 10px 14px;
-  background: var(--bg-card);
+  padding: 15px 24px 15px 14px;
+  background: rgba(39, 39, 42, 0.5);
   color: var(--text-secondary);
   border: none;
   font-size: 0.95rem;
@@ -498,6 +498,26 @@ a:hover { color: var(--accent-hover); }
 
 /* Dim other tabs while one is hovered */
 .workspace-tabs:hover .workspace-tab:not(:hover):not(.active) {
-  background: var(--bg-base);
+  background: rgba(39, 39, 42, 0.15);
   color: var(--text-muted);
+}
+
+.workspace-tab-add {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+  margin: 12px auto 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+.workspace-tab-add:hover {
+  background: var(--accent-dim);
 }
