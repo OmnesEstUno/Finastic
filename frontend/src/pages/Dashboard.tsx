@@ -32,6 +32,7 @@ import {
 import { getCategoryColor } from '../utils/categories';
 import CategoryLineChart, { TIME_RANGE_LABELS } from '../components/charts/CategoryLineChart';
 import ExpenseCategoryTable from '../components/dashboard/ExpenseCategoryTable';
+import YearSelector from '../components/dashboard/YearSelector';
 import MonthlyBalanceView from '../components/dashboard/MonthlyBalanceView';
 import ExpandedMonthView from '../components/dashboard/ExpandedMonthView';
 import Toast from '../components/Toast';
@@ -56,6 +57,8 @@ export default function Dashboard() {
   const [timeRange, setTimeRange] = useState<TimeRange>('year');
   const [expandedCategory, setExpandedCategory] = useState<Category | null>(null);
   const [expandedMonth, setExpandedMonth] = useState<number | null>(null);
+  const [expenseYear, setExpenseYear] = useState(new Date().getFullYear());
+  const [incomeYear, setIncomeYear] = useState(new Date().getFullYear());
 
   // Undo toast — populated right after a successful delete
   const [pendingUndo, setPendingUndo] = useState<PendingUndo | null>(null);
@@ -235,10 +238,13 @@ export default function Dashboard() {
   const totalIncome = income.reduce((s, e) => s + e.netAmount, 0);
   const surplus = totalIncome - totalExpenses;
 
-  const monthlyTable = buildMonthlyExpenseTable(transactions);
-  const monthlyBalance = buildMonthlyBalance(transactions, income);
+  const monthlyTable = buildMonthlyExpenseTable(transactions, expenseYear);
+  const monthlyBalance = buildMonthlyBalance(transactions, income, incomeYear);
   const categoryAverages = buildCategoryAverages(transactions);
+  const currentYear = new Date().getFullYear();
   const currentMonth = new Date().getMonth();
+  // For past years show the full calendar; for the current year truncate at the current month.
+  const expenseMonthCount = expenseYear < currentYear ? 12 : currentMonth + 1;
 
   return (
     <Layout>
@@ -303,23 +309,26 @@ export default function Dashboard() {
       <div className="section">
         <div className="card">
           <div className="card-header">
-            <h2>Expenses by Category — {new Date().getFullYear()}</h2>
-            {expandedCategory && (
-              <button className="btn btn-ghost btn-sm" onClick={() => setExpandedCategory(null)}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polyline points="15 18 9 12 15 6" />
-                </svg>
-                Back to all categories
-              </button>
-            )}
+            <h2>Expenses by Category</h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <YearSelector transactions={transactions} value={expenseYear} onChange={setExpenseYear} />
+              {expandedCategory && (
+                <button className="btn btn-ghost btn-sm" onClick={() => setExpandedCategory(null)}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <polyline points="15 18 9 12 15 6" />
+                  </svg>
+                  Back to all categories
+                </button>
+              )}
+            </div>
           </div>
           {monthlyTable.length === 0 ? (
-            <EmptyState message={`No expense data for ${new Date().getFullYear()}.`} />
+            <EmptyState message={`No expense data for ${expenseYear}.`} />
           ) : (
             <ExpenseCategoryTable
               monthlyTable={monthlyTable}
               transactions={transactions}
-              currentMonth={currentMonth}
+              currentMonth={expenseMonthCount - 1}
               expandedCategory={expandedCategory}
               onSelect={(c) => setExpandedCategory(c === expandedCategory ? null : c)}
               onDelete={handleDelete}
@@ -337,24 +346,32 @@ export default function Dashboard() {
         <div className="card">
           <div className="card-header">
             <h2>
-              Income vs. Expenditures — {new Date().getFullYear()}
+              Income vs. Expenditures
               {expandedMonth !== null && (
                 <span style={{ color: 'var(--text-muted)', fontWeight: 400, marginLeft: 8 }}>
                   / {MONTH_NAMES[expandedMonth]}
                 </span>
               )}
             </h2>
-            {expandedMonth !== null && (
-              <button className="btn btn-ghost btn-sm" onClick={() => setExpandedMonth(null)}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polyline points="15 18 9 12 15 6" />
-                </svg>
-                Back to full year
-              </button>
-            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <YearSelector
+                transactions={transactions}
+                incomeEntries={income}
+                value={incomeYear}
+                onChange={(y) => { setIncomeYear(y); setExpandedMonth(null); }}
+              />
+              {expandedMonth !== null && (
+                <button className="btn btn-ghost btn-sm" onClick={() => setExpandedMonth(null)}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <polyline points="15 18 9 12 15 6" />
+                  </svg>
+                  Back to full year
+                </button>
+              )}
+            </div>
           </div>
           {monthlyBalance.length === 0 ? (
-            <EmptyState message={`No data for ${new Date().getFullYear()} yet.`} />
+            <EmptyState message={`No data for ${incomeYear} yet.`} />
           ) : expandedMonth === null ? (
             <MonthlyBalanceView
               monthlyBalance={monthlyBalance}
@@ -364,7 +381,7 @@ export default function Dashboard() {
             <ExpandedMonthView
               transactions={transactions}
               incomeEntries={income}
-              year={new Date().getFullYear()}
+              year={incomeYear}
               month={expandedMonth}
               onDelete={handleDelete}
               onUpdateTransaction={handleUpdateTransaction}
