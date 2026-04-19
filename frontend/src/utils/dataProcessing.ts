@@ -1,5 +1,5 @@
 import { format, startOfWeek, startOfMonth, startOfYear, subDays, subMonths, parseISO, isWithinInterval } from 'date-fns';
-import { Category, IncomeEntry, TimeRange, Transaction } from '../types';
+import { Category, CustomDateRange, IncomeEntry, TimeRange, Transaction } from '../types';
 
 /**
  * Return every distinct category that has at least one expense transaction,
@@ -32,12 +32,22 @@ function getDateRange(range: TimeRange): { start: Date; end: Date } {
       return { start: subMonths(now, 3), end: now };
     case 'year':
       return { start: subMonths(now, 12), end: now };
-    case 'all':
-      return { start: new Date(2000, 0, 1), end: now };
+    case 'custom':
+      // Callers pass customRange and short-circuit this branch;
+      // fall back to the past year so we never return an invalid range.
+      return { start: subMonths(now, 12), end: now };
   }
 }
 
-function groupByPeriod(range: TimeRange): (date: Date) => string {
+// Pick a sensible bucket size based on the span. Short ranges bucket by day,
+// medium ranges by week, long ranges by month.
+function groupByPeriod(range: TimeRange, span?: number): (date: Date) => string {
+  if (range === 'custom' && span !== undefined) {
+    const days = span / (24 * 60 * 60 * 1000);
+    if (days <= 14) return (d) => format(d, 'MMM d');
+    if (days <= 180) return (d) => format(startOfWeek(d), 'MMM d');
+    return (d) => format(startOfMonth(d), 'MMM yyyy');
+  }
   switch (range) {
     case 'week':
       return (d) => format(d, 'MMM d');
@@ -46,7 +56,7 @@ function groupByPeriod(range: TimeRange): (date: Date) => string {
     case '3month':
       return (d) => format(startOfWeek(d), 'MMM d');
     case 'year':
-    case 'all':
+    case 'custom':
       return (d) => format(startOfMonth(d), 'MMM yyyy');
   }
 }
@@ -61,9 +71,15 @@ function groupByPeriod(range: TimeRange): (date: Date) => string {
 // runtime usage to treat category keys as numeric.
 export type LineChartPoint = { label: string } & { [category: string]: string | number | undefined };
 
-export function buildLineChartData(transactions: Transaction[], range: TimeRange): LineChartPoint[] {
-  const { start, end } = getDateRange(range);
-  const getKey = groupByPeriod(range);
+export function buildLineChartData(
+  transactions: Transaction[],
+  range: TimeRange,
+  customRange?: CustomDateRange | null,
+): LineChartPoint[] {
+  const { start, end } = range === 'custom' && customRange
+    ? { start: parseISO(customRange.start), end: parseISO(customRange.end) }
+    : getDateRange(range);
+  const getKey = groupByPeriod(range, end.getTime() - start.getTime());
 
   // Filter only expenses in the date range (exclude Taxes from trending, exclude archived)
   const filtered = transactions.filter((t) => {

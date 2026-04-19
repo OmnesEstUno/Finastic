@@ -74,7 +74,12 @@ export interface Instance {
   createdAt: string;
 }
 
-export type TimeRange = 'week' | 'month' | '3month' | 'year' | 'all';
+export type TimeRange = 'week' | 'month' | '3month' | 'year' | 'custom';
+
+export interface CustomDateRange {
+  start: string; // ISO yyyy-mm-dd
+  end: string;   // ISO yyyy-mm-dd
+}
 
 export interface ParsedExpenseRow {
   kind: 'expense';

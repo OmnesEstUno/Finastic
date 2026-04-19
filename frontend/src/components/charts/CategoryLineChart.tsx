@@ -9,15 +9,18 @@ import {
   ResponsiveContainer,
   TooltipProps,
 } from 'recharts';
-import { Category, TimeRange } from '../../types';
+import { Category, CustomDateRange, TimeRange } from '../../types';
 import { getCategoryColor } from '../../utils/categories';
 import { buildLineChartData, formatCurrency, getMaxValue, getTrendingCategories } from '../../utils/dataProcessing';
 import { Transaction } from '../../types';
 import CheckmarkToggle from '../CheckmarkToggle';
+import DateRangePicker from '../DateRangePicker';
 
 interface Props {
   transactions: Transaction[];
   timeRange: TimeRange;
+  customRange?: CustomDateRange | null;
+  onCustomRangeChange?: (range: CustomDateRange) => void;
 }
 
 const TIME_RANGE_LABELS: Record<TimeRange, string> = {
@@ -25,13 +28,15 @@ const TIME_RANGE_LABELS: Record<TimeRange, string> = {
   month: 'Past Month',
   '3month': 'Past 3 Months',
   year: 'Past 1 Year',
-  all: 'All Time',
+  custom: 'Custom Range',
 };
 
-function CustomTooltip({ active, payload, label, highlighted }: TooltipProps<number, string> & { highlighted: Category | null }) {
+function CustomTooltip({ active, payload, label, selectedSet }: TooltipProps<number, string> & { selectedSet: Set<Category> }) {
   if (!active || !payload || payload.length === 0) return null;
 
-  const filtered = highlighted ? payload.filter((e) => e.name === highlighted) : payload;
+  const filtered = selectedSet.size > 0
+    ? payload.filter((e) => e.name !== undefined && selectedSet.has(e.name as Category))
+    : payload;
   const sorted = [...filtered].sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
 
   return (
@@ -68,13 +73,15 @@ function CustomTooltip({ active, payload, label, highlighted }: TooltipProps<num
   );
 }
 
-export default function CategoryLineChart({ transactions, timeRange }: Props) {
+export default function CategoryLineChart({ transactions, timeRange, customRange, onCustomRangeChange }: Props) {
   // Derive the full category list from the current transactions so custom
   // categories appear automatically alongside built-ins.
   const allCategories = useMemo(() => getTrendingCategories(transactions), [transactions]);
   const [activeCategories, setActiveCategories] = useState<Set<Category>>(() => new Set(allCategories));
   const [hoveredLine, setHoveredLine] = useState<Category | null>(null);
-  const [selectedLine, setSelectedLine] = useState<Category | null>(null);
+  // Multi-select isolation: when non-empty, those categories are emphasized and
+  // others dim. When empty, falls back to the hoveredLine hover-highlight.
+  const [selectedSet, setSelectedSet] = useState<Set<Category>>(new Set());
 
   // When the set of available categories changes (e.g., after a new upload),
   // re-sync the active set to include everything. User toggles within the
@@ -83,10 +90,7 @@ export default function CategoryLineChart({ transactions, timeRange }: Props) {
     setActiveCategories(new Set(allCategories));
   }, [allCategories]);
 
-  // effective highlight: selection wins, otherwise hover
-  const highlighted = selectedLine ?? hoveredLine;
-
-  const data = buildLineChartData(transactions, timeRange);
+  const data = buildLineChartData(transactions, timeRange, customRange);
   const maxValue = getMaxValue(data, activeCategories);
 
   const toggle = useCallback((cat: Category) => {
@@ -102,9 +106,19 @@ export default function CategoryLineChart({ transactions, timeRange }: Props) {
     });
   }, []);
 
-  const selectCategory = useCallback((cat: Category) => {
-    setSelectedLine((curr) => (curr === cat ? null : cat));
+  const toggleSelected = useCallback((cat: Category) => {
+    setSelectedSet((prev) => {
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat); else next.add(cat);
+      return next;
+    });
   }, []);
+
+  // Emphasis rule: non-empty selection wins; otherwise hover highlights one.
+  const isEmphasized = (cat: Category) =>
+    selectedSet.size > 0 ? selectedSet.has(cat) : hoveredLine === cat;
+  const isFaded = (cat: Category) =>
+    selectedSet.size > 0 ? !selectedSet.has(cat) : (hoveredLine !== null && hoveredLine !== cat);
 
   const visibleCategories = allCategories.filter((c) =>
     data.some((point) => (point[c] as number | undefined) !== undefined && (point[c] as number) > 0),
@@ -143,7 +157,7 @@ export default function CategoryLineChart({ transactions, timeRange }: Props) {
           return (
             <div
               key={cat}
-              style={{ opacity: highlighted && highlighted !== cat ? 0.4 : 1, transition: 'opacity 0.15s' }}
+              style={{ opacity: isFaded(cat) ? 0.4 : 1, transition: 'opacity 0.15s' }}
             >
               <CheckmarkToggle
                 label={cat}
@@ -157,18 +171,25 @@ export default function CategoryLineChart({ transactions, timeRange }: Props) {
             </div>
           );
         })}
-        {selectedLine && (
+        {selectedSet.size > 0 && (
           <button
             className="btn btn-ghost btn-sm"
             style={{ marginLeft: 'auto', padding: '4px 10px', fontSize: '0.75rem' }}
-            onClick={() => setSelectedLine(null)}
+            onClick={() => setSelectedSet(new Set())}
           >
             Clear selection
           </button>
         )}
       </div>
+
+      {timeRange === 'custom' && onCustomRangeChange && (
+        <div style={{ marginBottom: 16 }}>
+          <DateRangePicker value={customRange ?? null} onChange={onCustomRangeChange} maxSpanYears={10} />
+        </div>
+      )}
+
       <p className="text-xs text-muted" style={{ marginBottom: 16 }}>
-        Tip: Click a chip to show/hide a category. Click a data point to isolate a line.
+        Tip: Click a chip to show/hide a category. Click a data point to isolate it; click more points to compare.
       </p>
 
       <ResponsiveContainer width="100%" height={400}>
@@ -178,7 +199,7 @@ export default function CategoryLineChart({ transactions, timeRange }: Props) {
           onClick={(e: unknown) => {
             // Click on empty chart area clears selection
             const ev = e as { activePayload?: unknown } | null;
-            if (!ev || !ev.activePayload) setSelectedLine(null);
+            if (!ev || !ev.activePayload) setSelectedSet(new Set());
           }}
         >
           <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -204,18 +225,18 @@ export default function CategoryLineChart({ transactions, timeRange }: Props) {
               fontSize: 11,
             }}
           />
-          <Tooltip content={<CustomTooltip highlighted={highlighted} />} />
+          <Tooltip content={<CustomTooltip selectedSet={selectedSet} />} />
           {allCategories.map((cat) => {
             if (!activeCategories.has(cat)) return null;
-            const isHighlighted = highlighted === cat;
-            const hasAnyHighlight = highlighted !== null;
+            const emphasized = isEmphasized(cat);
+            const faded = isFaded(cat);
             return (
               <Line
                 key={cat}
                 type="monotone"
                 dataKey={cat}
                 stroke={getCategoryColor(cat)}
-                strokeWidth={isHighlighted ? 3 : 1.5}
+                strokeWidth={emphasized ? 3 : 1.5}
                 dot={false}
                 activeDot={{
                   r: 5,
@@ -227,10 +248,10 @@ export default function CategoryLineChart({ transactions, timeRange }: Props) {
                   onMouseLeave: () => setHoveredLine(null),
                   onClick: (e: { stopPropagation?: () => void }) => {
                     e?.stopPropagation?.();
-                    selectCategory(cat);
+                    toggleSelected(cat);
                   },
                 }}
-                opacity={hasAnyHighlight && !isHighlighted ? 0.15 : 1}
+                opacity={faded ? 0.15 : 1}
                 onMouseEnter={() => setHoveredLine(cat)}
                 onMouseLeave={() => setHoveredLine(null)}
               />
