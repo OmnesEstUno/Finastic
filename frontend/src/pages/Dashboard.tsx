@@ -476,7 +476,13 @@ export default function Dashboard() {
               );
             })()}
             {monthlyTable.length === 0 ? (
-              <EmptyState message={`No expense data for ${expenseYear}.`} />
+              <EmptyState
+                message={
+                  expenseRange
+                    ? 'No expense data for the selected range.'
+                    : `No expense data for ${expenseYear}.`
+                }
+              />
             ) : (
               <ExpenseCategoryTable
                 monthlyTable={monthlyTable}
