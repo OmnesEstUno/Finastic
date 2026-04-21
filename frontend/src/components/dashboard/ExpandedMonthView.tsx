@@ -39,7 +39,6 @@ function ExpandedMonthView({
   addCustomCategory,
   isActiveOwner = true,
 }: ExpandedMonthViewProps) {
-  const dailyBalance = buildDailyBalance(transactions, incomeEntries, year, month);
   const rawEvents = buildMonthEvents(transactions, incomeEntries, year, month);
 
   // ── Task 14: day-click filter ──────────────────────────────────────────────
@@ -59,22 +58,27 @@ function ExpandedMonthView({
     setSelectedCategories(null);
   }, [year, month]);
 
-  // Per-category totals for quick reference above the chronological list
+  // Per-category totals for the chips — always unfiltered so the user sees real numbers.
   const categoryTotals = new Map<Category, number>();
-  let totalIncome = 0;
-  let totalExpenses = 0;
   rawEvents.forEach((e) => {
-    if (e.kind === 'income') {
-      totalIncome += e.amount;
-    } else {
-      totalExpenses += e.amount;
-      if (e.category) {
-        categoryTotals.set(e.category, (categoryTotals.get(e.category) ?? 0) + e.amount);
-      }
+    if (e.kind === 'expense' && e.category) {
+      categoryTotals.set(e.category, (categoryTotals.get(e.category) ?? 0) + e.amount);
     }
   });
 
   const monthLabel = `${MONTH_NAMES[month]} ${year}`;
+
+  // Daily chart must react to chip selection: filter transactions by active
+  // categories before handing them to buildDailyBalance. Non-expenses pass
+  // through (buildDailyBalance already handles them appropriately).
+  const expenseCategoryAllowed = (t: Transaction) => {
+    if (t.type !== 'expense') return true; // non-expenses pass (and buildDailyBalance ignores them anyway)
+    if (selectedCategories === null) return true;
+    if (!t.category) return false;
+    return selectedCategories.has(t.category);
+  };
+  const filteredTransactions = transactions.filter(expenseCategoryAllowed);
+  const dailyBalance = buildDailyBalance(filteredTransactions, incomeEntries, year, month);
 
   // ── Composed filter chain ──────────────────────────────────────────────────
   // Step 1: day filter
@@ -92,6 +96,14 @@ function ExpandedMonthView({
         if (!e.category) return false;
         return selectedCategories.has(e.category);
       });
+
+  // Totals for MonthTotalsBar — reflect the active category filter.
+  let totalIncome = 0;
+  let totalExpenses = 0;
+  afterCategoryFilter.forEach((e) => {
+    if (e.kind === 'income') totalIncome += e.amount;
+    else totalExpenses += e.amount;
+  });
 
   // Step 3: search filter
   const filteredRawEvents = searchQuery.trim()
