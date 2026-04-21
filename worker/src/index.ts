@@ -758,6 +758,49 @@ export default {
         }
       }
 
+      // ── Feature Requests ──
+
+      // Submit a feature request (any authenticated user)
+      if (path === '/api/feature-requests' && method === 'POST') {
+        let body: { text?: unknown };
+        try {
+          body = await request.json();
+        } catch {
+          return respond({ error: 'Invalid JSON' }, 400, cors);
+        }
+        const text = typeof body.text === 'string' ? body.text.trim() : '';
+        if (!text) return respond({ error: 'Text required.' }, 400, cors);
+        if (text.length > 2000) return respond({ error: 'Text too long (max 2000 chars).' }, 400, cors);
+        const createdAt = new Date().toISOString();
+        const shortId = crypto.randomUUID().slice(0, 8);
+        const key = `feature-requests:${createdAt}:${shortId}`;
+        const record = { id: shortId, username: auth.username, text, createdAt, status: 'new' as const };
+        await env.FINANCE_KV.put(key, JSON.stringify(record));
+        return respond({ ok: true, id: shortId }, 201, cors);
+      }
+
+      // List all feature requests (admin only)
+      if (path === '/api/feature-requests' && method === 'GET') {
+        const authResult = await authenticateAdmin(request, env, cors);
+        if (authResult instanceof Response) return authResult;
+        const list = await env.FINANCE_KV.list({ prefix: 'feature-requests:' });
+        const items: unknown[] = [];
+        for (const k of list.keys) {
+          const v = await env.FINANCE_KV.get(k.name);
+          if (v) {
+            try {
+              items.push(JSON.parse(v));
+            } catch {
+              /* skip malformed entries */
+            }
+          }
+        }
+        // Newest first. Keys are `feature-requests:<ISO>:<short>`, so ISO string comparison works chronologically; reverse it.
+        type FR = { createdAt: string };
+        const sorted = (items as FR[]).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+        return respond({ items: sorted }, 200, cors);
+      }
+
       // ─────────────────────────────────────────────────────────────────────
       // Data endpoints — require valid JWT + X-Instance-Id membership check
       // ─────────────────────────────────────────────────────────────────────

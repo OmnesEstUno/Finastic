@@ -374,3 +374,25 @@ export async function acceptWorkspaceInvite(token: string): Promise<{ id: string
 export async function getWorkspaceInviteMeta(token: string): Promise<{ instanceName: string; ownerUsername: string; expiresAt: number; usedBy: string | null; alreadyMember: boolean }> {
   return request(`/api/instances/invites/meta?token=${encodeURIComponent(token)}`);
 }
+
+// ─── Feature Requests ────────────────────────────────────────────────────────
+
+export interface FeatureRequest {
+  id: string;
+  username: string;
+  text: string;
+  createdAt: string;
+  status: 'new' | 'reviewed' | 'planned' | 'done';
+}
+
+export async function submitFeatureRequest(text: string): Promise<{ id: string }> {
+  return request('/api/feature-requests', {
+    method: 'POST',
+    body: JSON.stringify({ text }),
+  });
+}
+
+export async function listFeatureRequests(): Promise<FeatureRequest[]> {
+  const res = await request<{ items: FeatureRequest[] }>('/api/feature-requests');
+  return res.items;
+}

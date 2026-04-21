@@ -10,6 +10,8 @@ import InviteTokensCard from '../components/InviteTokensCard';
 import WorkspacesCard from '../components/WorkspacesCard';
 import ArchivedCard from '../components/dashboard/ArchivedCard';
 import DangerZone from '../components/DangerZone';
+import FeatureRequestCard from '../components/FeatureRequestCard';
+import FeatureRequestsAdminCard from '../components/FeatureRequestsAdminCard';
 import Layout from '../components/layout/Layout';
 
 /**
@@ -346,6 +348,10 @@ export default function Settings() {
           </div>
         )}
       </div>
+
+      {/* ─── Feature Request ──────────────────────────────── */}
+      <FeatureRequestCard />
+      {currentUser === 'admin' && <FeatureRequestsAdminCard />}
 
       {/* ─── Archived Transactions ────────────────────────── */}
       <ArchivedCard />
