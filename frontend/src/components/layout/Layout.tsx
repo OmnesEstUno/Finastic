@@ -79,7 +79,7 @@ export default function Layout({ children }: LayoutProps) {
           </div>
         </nav>
         <div style={{ display: 'flex', flex: 1, minHeight: 'calc(100vh - 56px)' }}>
-          {currentUser && <WorkspaceTabs />}
+          {currentUser && path !== '/settings' && <WorkspaceTabs />}
           <main style={{ flex: 1, padding: '32px 0', minWidth: 0 }}>
             <div className="container">{children}</div>
           </main>
