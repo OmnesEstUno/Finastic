@@ -849,3 +849,10 @@ a:hover { color: var(--accent-hover); }
 .card .btn-lg { padding: 22px 44px; font-size: 1.1875rem; }
 /* CheckmarkToggle renders a <button> without .btn, so category chips are unaffected. */
 /* Drag handle uses .dashboard-card-handle (no .btn class), also unaffected. */
+
+/* ─── Net Balance chart: smooth hover opacity transition ─────────────────── */
+.net-balance-chart .recharts-bar-rectangle,
+.net-balance-chart .recharts-bar-rectangle path,
+.net-balance-chart .recharts-bar-rectangle rect {
+  transition: fill-opacity 0.2s ease-in-out;
+}
