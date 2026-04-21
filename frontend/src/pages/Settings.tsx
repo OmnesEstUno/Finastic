@@ -7,6 +7,7 @@ import { useCurrentUser } from '../hooks/useCurrentUser';
 import { useWorkspaces } from '../hooks/useWorkspaces';
 import { useDashboardLayout, CARD_IDS, CARD_LABELS } from '../hooks/useDashboardLayout';
 import InviteTokensCard from '../components/InviteTokensCard';
+import ToggleSwitch from '../components/ToggleSwitch';
 import WorkspacesCard from '../components/WorkspacesCard';
 import ArchivedCard from '../components/dashboard/ArchivedCard';
 import DangerZone from '../components/DangerZone';
@@ -182,17 +183,17 @@ export default function Settings() {
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {CARD_IDS.map((id) => (
-            <label
+            <div
               key={id}
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, cursor: 'pointer' }}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}
             >
               <span>{CARD_LABELS[id]}</span>
-              <input
-                type="checkbox"
+              <ToggleSwitch
                 checked={!hidden.has(id)}
                 onChange={() => toggleHidden(id)}
+                ariaLabel={`${!hidden.has(id) ? 'Hide' : 'Show'} ${CARD_LABELS[id]} on dashboard`}
               />
-            </label>
+            </div>
           ))}
         </div>
       </div>
