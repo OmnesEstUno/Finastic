@@ -217,6 +217,40 @@ export function buildMonthlyBalance(
   incomeEntries: IncomeEntry[],
   year: number = new Date().getFullYear(),
 ): MonthlyBalance[] {
+  if (year === -1) {
+    // All Time: one entry per (year, month) that has any activity.
+    // Key = `${year}-${paddedMonth}` so string sort is chronological.
+    const map = new Map<string, { year: number; month: number; income: number; expenses: number }>();
+    const keyOf = (y: number, m: number) => `${y}-${String(m).padStart(2, '0')}`;
+
+    transactions.forEach((t) => {
+      if (t.archived || t.type !== 'expense') return;
+      const d = parseISO(t.date);
+      const k = keyOf(d.getFullYear(), d.getMonth());
+      const cur = map.get(k) ?? { year: d.getFullYear(), month: d.getMonth(), income: 0, expenses: 0 };
+      cur.expenses += Math.abs(t.amount);
+      map.set(k, cur);
+    });
+
+    incomeEntries.forEach((entry) => {
+      const d = parseISO(entry.date);
+      const k = keyOf(d.getFullYear(), d.getMonth());
+      const cur = map.get(k) ?? { year: d.getFullYear(), month: d.getMonth(), income: 0, expenses: 0 };
+      cur.income += entry.netAmount;
+      map.set(k, cur);
+    });
+
+    return [...map.entries()]
+      .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
+      .map(([, v]) => ({
+        month: `${MONTH_NAMES[v.month]} ${v.year}`,
+        monthIndex: v.month,
+        income: v.income,
+        expenses: v.expenses,
+        surplus: v.income - v.expenses,
+      }));
+  }
+
   const expenseByMonth = new Array(12).fill(0);
   const incomeByMonth = new Array(12).fill(0);
 

@@ -2,7 +2,7 @@ import { parseISO } from 'date-fns';
 import { IncomeEntry, Transaction } from '../../types';
 
 // Sentinel value meaning "aggregate across every year of data" — not a real year.
-export const ALL_YEARS = 0;
+export const ALL_YEARS = -1;
 
 // Sentinel value for a custom date range option
 export const CUSTOM_RANGE = -2;

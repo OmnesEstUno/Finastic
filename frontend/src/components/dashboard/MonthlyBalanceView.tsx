@@ -8,13 +8,13 @@ interface MonthlyBalanceViewProps {
     expenses: number;
     surplus: number;
   }>;
-  onMonthClick: (monthIndex: number) => void;
+  onMonthClick?: (monthIndex: number) => void;
 }
 
 function MonthlyBalanceView({ monthlyBalance, onMonthClick }: MonthlyBalanceViewProps) {
   return (
     <>
-      {/* Numeric table — rows are clickable */}
+      {/* Numeric table — rows are clickable when onMonthClick is provided */}
       <div className="table-wrapper" style={{ marginBottom: 24 }}>
         <table className="table">
           <thead>
@@ -29,9 +29,9 @@ function MonthlyBalanceView({ monthlyBalance, onMonthClick }: MonthlyBalanceView
             {monthlyBalance.map((row) => (
               <tr
                 key={row.month}
-                onClick={() => onMonthClick(row.monthIndex)}
-                style={{ cursor: 'pointer' }}
-                title="Click to drill down into this month"
+                onClick={onMonthClick ? () => onMonthClick(row.monthIndex) : undefined}
+                style={{ cursor: onMonthClick ? 'pointer' : 'default' }}
+                title={onMonthClick ? 'Click to drill down into this month' : undefined}
               >
                 <td>{row.month}</td>
                 <td className="num text-success">{row.income > 0 ? formatCurrency(row.income) : <span className="zero">—</span>}</td>

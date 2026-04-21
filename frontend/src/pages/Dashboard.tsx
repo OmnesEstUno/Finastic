@@ -527,6 +527,7 @@ export default function Dashboard() {
                   incomeEntries={income}
                   value={incomeYear}
                   onChange={(y) => { setIncomeYear(y); setExpandedMonth(null); }}
+                  allowAllTime
                 />
                 {expandedMonth !== null && (
                   <button className="btn btn-ghost btn-sm" onClick={() => setExpandedMonth(null)}>
@@ -540,12 +541,12 @@ export default function Dashboard() {
             }
           >
             {monthlyBalance.length === 0 ? (
-              <EmptyState message={`No data for ${incomeYear} yet.`} />
+              <EmptyState message={incomeYear === -1 ? 'No data yet.' : `No data for ${incomeYear} yet.`} />
             ) : expandedMonth === null ? (
               <>
                 <MonthlyBalanceView
                   monthlyBalance={monthlyBalance}
-                  onMonthClick={(idx) => setExpandedMonth(idx)}
+                  onMonthClick={incomeYear === -1 ? undefined : (idx) => setExpandedMonth(idx)}
                 />
                 <div style={{ marginTop: 16 }}>
                   <h3 style={{ color: 'var(--text-secondary)', marginBottom: 8, fontSize: '1rem' }}>Net Balance</h3>
