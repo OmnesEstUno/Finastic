@@ -97,7 +97,7 @@ export default function Dashboard() {
   const [timeRange, setTimeRange] = useState<TimeRange>('year');
   const [customRange, setCustomRange] = useState<CustomDateRange | null>(null);
   const [expandedCategory, setExpandedCategory] = useState<Category | null>(null);
-  const [expandedMonth, setExpandedMonth] = useState<number | null>(null);
+  const [expandedMonth, setExpandedMonth] = useState<{ year: number; month: number } | null>(null);
   const [expenseYear, setExpenseYear] = useState(new Date().getFullYear());
   const [expenseRange, setExpenseRange] = useState<CustomDateRange | null>(null);
   const [avgRange, setAvgRange] = useState<CustomDateRange | null>(null);
@@ -513,7 +513,7 @@ export default function Dashboard() {
                 Income vs. Expenditures
                 {expandedMonth !== null && (
                   <span style={{ color: 'var(--text-muted)', fontWeight: 400, marginLeft: 8 }}>
-                    / {MONTH_NAMES[expandedMonth]}
+                    / {MONTH_NAMES[expandedMonth.month]} {expandedMonth.year}
                   </span>
                 )}
               </>
@@ -546,7 +546,7 @@ export default function Dashboard() {
               <>
                 <MonthlyBalanceView
                   monthlyBalance={monthlyBalance}
-                  onMonthClick={incomeYear === -1 ? undefined : (idx) => setExpandedMonth(idx)}
+                  onMonthClick={(y, m) => setExpandedMonth({ year: y, month: m })}
                 />
                 <div style={{ marginTop: 16 }}>
                   <h3 style={{ color: 'var(--text-secondary)', marginBottom: 8, fontSize: '1rem' }}>Net Balance</h3>
@@ -557,8 +557,8 @@ export default function Dashboard() {
               <ExpandedMonthView
                 transactions={transactions}
                 incomeEntries={income}
-                year={incomeYear}
-                month={expandedMonth}
+                year={expandedMonth.year}
+                month={expandedMonth.month}
                 onDelete={handleDelete}
                 onUpdateTransaction={handleUpdateTransaction}
                 onUpdateIncome={handleUpdateIncome}

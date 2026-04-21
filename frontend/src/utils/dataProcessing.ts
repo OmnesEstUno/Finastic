@@ -207,6 +207,7 @@ export function buildMonthlyExpenseTable(
 export interface MonthlyBalance {
   month: string; // "Jan", "Feb", etc.
   monthIndex: number; // 0–11, useful for click handlers
+  year: number; // the calendar year this row belongs to
   income: number;
   expenses: number; // includes taxes
   surplus: number; // signed — negative means deficit
@@ -245,6 +246,7 @@ export function buildMonthlyBalance(
       .map(([, v]) => ({
         month: `${MONTH_NAMES[v.month]} ${v.year}`,
         monthIndex: v.month,
+        year: v.year,
         income: v.income,
         expenses: v.expenses,
         surplus: v.income - v.expenses,
@@ -276,6 +278,7 @@ export function buildMonthlyBalance(
   return MONTH_NAMES.slice(0, monthCount).map((month, i) => ({
     month,
     monthIndex: i,
+    year,
     income: incomeByMonth[i],
     expenses: expenseByMonth[i],
     surplus: incomeByMonth[i] - expenseByMonth[i],

@@ -4,11 +4,12 @@ interface MonthlyBalanceViewProps {
   monthlyBalance: Array<{
     month: string;
     monthIndex: number;
+    year: number;
     income: number;
     expenses: number;
     surplus: number;
   }>;
-  onMonthClick?: (monthIndex: number) => void;
+  onMonthClick?: (year: number, monthIndex: number) => void;
 }
 
 function MonthlyBalanceView({ monthlyBalance, onMonthClick }: MonthlyBalanceViewProps) {
@@ -29,7 +30,7 @@ function MonthlyBalanceView({ monthlyBalance, onMonthClick }: MonthlyBalanceView
             {monthlyBalance.map((row) => (
               <tr
                 key={row.month}
-                onClick={onMonthClick ? () => onMonthClick(row.monthIndex) : undefined}
+                onClick={onMonthClick ? () => onMonthClick(row.year, row.monthIndex) : undefined}
                 style={{ cursor: onMonthClick ? 'pointer' : 'default' }}
                 title={onMonthClick ? 'Click to drill down into this month' : undefined}
               >
