@@ -49,6 +49,11 @@ Flagged spots:
 
 Commented-out code sweep: 415 non-TODO/NOTE/FIXME comment lines audited. All are section headers, inline explanations, or instructional prose. Zero abandoned code blocks found.
 
+**Task 1.2 (follow-up): 2 additional dead exports removed (missed in prior sweep).**
+
+- `frontend/src/components/charts/CategoryLineChart.tsx`: removed dead export of `Props as CategoryLineChartProps` (no external consumers)
+- `frontend/src/components/dashboard/TimeRangeSelector.tsx`: removed dead `export { TIME_RANGE_LABELS }` (internal-only)
+
 ### Duplication
 (Populated in Phases 2–3.)
 

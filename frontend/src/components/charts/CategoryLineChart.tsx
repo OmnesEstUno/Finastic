@@ -273,4 +273,3 @@ export default function CategoryLineChart({ transactions, timeRange, customRange
   );
 }
 
-export type { Props as CategoryLineChartProps };
