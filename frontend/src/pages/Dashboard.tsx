@@ -134,7 +134,9 @@ export default function Dashboard() {
   useEffect(() => {
     if (activeInstanceId === undefined) return; // still resolving (shouldn't happen with null init)
     setLoading(false);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally runs once on mount only;
+  // adding activeInstanceId would re-trigger on every workspace switch, fighting the effect below.
+  }, []);
 
   // Refetch whenever the active workspace changes (including first real load).
   useEffect(() => {

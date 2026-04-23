@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getTransactions, getIncome, renameCategory, deleteCategory } from '../api/client';
-import { IncomeEntry, Transaction, UserCategories } from '../types';
+import { IncomeEntry, Transaction } from '../types';
 import { useUserCategories } from '../hooks/useUserCategories';
 import { getCategoryColor } from '../utils/categories';
 import { useCurrentUser } from '../hooks/useCurrentUser';
@@ -466,5 +466,3 @@ export default function Settings() {
   );
 }
 
-// Re-export for use elsewhere if needed
-export type { UserCategories };

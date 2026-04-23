@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 
-export const CARD_IDS = [
+const CARD_IDS = [
   'spending-trends',
   'expenses-by-category',
   'income-vs-expenditures',
