@@ -2,9 +2,6 @@ import { format, startOfWeek, startOfMonth, subDays, subMonths, parseISO, isWith
 import { Category, CustomDateRange, IncomeEntry, TimeRange, Transaction } from '../types';
 import { MONTH_NAMES_SHORT } from './dateConstants';
 
-/** @deprecated Import MONTH_NAMES_SHORT from utils/dateConstants instead. */
-export const MONTH_NAMES = MONTH_NAMES_SHORT;
-
 export function filterByRange(
   transactions: Transaction[],
   range: CustomDateRange | null,

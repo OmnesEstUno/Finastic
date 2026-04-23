@@ -5,8 +5,9 @@ import {
 import { Transaction, IncomeEntry, Category, UserCategories } from '../../types';
 import { updateTransaction, updateIncome } from '../../api/client';
 import {
-  buildDailyBalance, buildMonthEvents, formatCurrency, MONTH_NAMES,
+  buildDailyBalance, buildMonthEvents, formatCurrency,
 } from '../../utils/dataProcessing';
+import { MONTH_NAMES_SHORT } from '../../utils/dateConstants';
 import { INCOME_COLOR, EXPENSE_COLOR, formatAxisCurrency } from './constants';
 import TransactionDrillDown, { DrillDownEvent } from './TransactionDrillDown';
 import MonthTotalsBar from './MonthTotalsBar';
@@ -66,7 +67,7 @@ function ExpandedMonthView({
     }
   });
 
-  const monthLabel = `${MONTH_NAMES[month]} ${year}`;
+  const monthLabel = `${MONTH_NAMES_SHORT[month]} ${year}`;
 
   // Daily chart must react to chip selection: filter transactions by active
   // categories before handing them to buildDailyBalance. Non-expenses pass
@@ -152,7 +153,7 @@ function ExpandedMonthView({
                 tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
                 axisLine={{ stroke: 'var(--border)' }}
                 tickLine={false}
-                label={{ value: `Day of ${MONTH_NAMES[month]}`, position: 'insideBottom', offset: -4, fill: 'var(--text-muted)', fontSize: 11 }}
+                label={{ value: `Day of ${MONTH_NAMES_SHORT[month]}`, position: 'insideBottom', offset: -4, fill: 'var(--text-muted)', fontSize: 11 }}
               />
               <YAxis
                 tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
@@ -163,7 +164,7 @@ function ExpandedMonthView({
               <Tooltip
                 contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, fontSize: '0.8125rem' }}
                 cursor={{ fill: 'rgba(255,255,255,0.04)' }}
-                labelFormatter={(label: string) => `${MONTH_NAMES[month]} ${label}`}
+                labelFormatter={(label: string) => `${MONTH_NAMES_SHORT[month]} ${label}`}
                 formatter={(value: number, name: string) => [formatCurrency(value), name]}
               />
               <Legend

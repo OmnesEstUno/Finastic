@@ -37,8 +37,8 @@ import {
   filterByRange,
   formatCurrency,
   getTrackedDuration,
-  MONTH_NAMES,
 } from '../utils/dataProcessing';
+import { MONTH_NAMES_SHORT } from '../utils/dateConstants';
 import { getCategoryColor } from '../utils/categories';
 import CategoryLineChart from '../components/charts/CategoryLineChart';
 import ExpenseCategoryTable from '../components/dashboard/ExpenseCategoryTable';
@@ -457,7 +457,7 @@ export default function Dashboard() {
                 Income vs. Expenditures
                 {expandedMonth !== null && (
                   <span style={{ color: 'var(--text-muted)', fontWeight: 400, marginLeft: 8 }}>
-                    / {MONTH_NAMES[expandedMonth.month]} {expandedMonth.year}
+                    / {MONTH_NAMES_SHORT[expandedMonth.month]} {expandedMonth.year}
                   </span>
                 )}
               </>
