@@ -79,7 +79,7 @@ export default function RowActionsMenu({ actions, disabled }: Props) {
         style={{ padding: '4px 8px' }}
       >
         <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
-          more_vert
+          {open ? 'more_vert' : 'more_horiz'}
         </span>
       </button>
       {open && coords && (
