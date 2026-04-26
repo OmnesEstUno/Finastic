@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
+import { TOAST_DEFAULT_DURATION_MS, TOAST_TICK_INTERVAL_MS } from '../utils/constants';
 
 interface ToastProps {
   message: string;
   actionLabel?: string;
   onAction?: () => void;
   onDismiss: () => void;
-  /** Auto-dismiss after N milliseconds. Defaults to 5000. */
+  /** Auto-dismiss after N milliseconds. Defaults to TOAST_DEFAULT_DURATION_MS. */
   duration?: number;
 }
 
@@ -19,7 +20,7 @@ export default function Toast({
   actionLabel,
   onAction,
   onDismiss,
-  duration = 5000,
+  duration = TOAST_DEFAULT_DURATION_MS,
 }: ToastProps) {
   const [remaining, setRemaining] = useState(100);
 
@@ -33,7 +34,7 @@ export default function Toast({
         window.clearInterval(interval);
         onDismiss();
       }
-    }, 50);
+    }, TOAST_TICK_INTERVAL_MS);
     return () => window.clearInterval(interval);
   }, [duration, onDismiss]);
 

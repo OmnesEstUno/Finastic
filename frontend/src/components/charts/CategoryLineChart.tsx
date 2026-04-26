@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
+import { CHART_HEIGHT_PX, CHART_Y_AXIS_HEADROOM, CHART_Y_TICK_STEP } from '../../utils/constants';
 import {
   LineChart,
   Line,
@@ -191,7 +192,7 @@ export default function CategoryLineChart({ transactions, timeRange, customRange
             Tip: Click a chip to show/hide a category. Click a data point to isolate it; click more points to compare.
           </p>
 
-          <ResponsiveContainer width="100%" height={400}>
+          <ResponsiveContainer width="100%" height={CHART_HEIGHT_PX}>
             <LineChart
           data={data}
           margin={{ top: 4, right: 16, left: 8, bottom: 4 }}
@@ -214,7 +215,7 @@ export default function CategoryLineChart({ transactions, timeRange, customRange
             axisLine={false}
             tickLine={false}
             tickFormatter={(v: number) => `$${v >= 1000 ? `${(v / 1000).toFixed(1)}k` : v}`}
-            domain={[0, Math.ceil((maxValue * 1.1) / 50) * 50 || 100]}
+            domain={[0, Math.ceil((maxValue * CHART_Y_AXIS_HEADROOM) / CHART_Y_TICK_STEP) * CHART_Y_TICK_STEP || 100]}
             label={{
               value: 'Amount ($)',
               angle: -90,

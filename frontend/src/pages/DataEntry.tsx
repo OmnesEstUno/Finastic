@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, FormEvent, DragEvent } from 'react';
+import { SUCCESS_FLASH_DURATION_MS } from '../utils/constants';
 import { BUILT_IN_CATEGORIES, Category, IncomeEntry, ParsedCSVRow } from '../types';
 import { parseTransactionCSV, parseIncomeCSV } from '../utils/csvParser';
 import { parsePDFPaystub, extractIncomeFromCSVText, ExtractedPaystub } from '../utils/pdfParser';
@@ -339,7 +340,7 @@ export default function DataEntry({ onRequestClose, onPendingChange }: DataEntry
       setTimeout(() => {
         onPendingChange(false);
         onRequestClose();
-      }, 1200);
+      }, SUCCESS_FLASH_DURATION_MS);
     } catch (err) {
       setSubmitError((err as Error).message);
     } finally {
@@ -371,7 +372,7 @@ export default function DataEntry({ onRequestClose, onPendingChange }: DataEntry
       setTimeout(() => {
         onPendingChange(false);
         onRequestClose();
-      }, 1200);
+      }, SUCCESS_FLASH_DURATION_MS);
     } catch (err) {
       setManualError((err as Error).message);
     } finally {
@@ -469,7 +470,7 @@ export default function DataEntry({ onRequestClose, onPendingChange }: DataEntry
       setTimeout(() => {
         onPendingChange(false);
         onRequestClose();
-      }, 1200);
+      }, SUCCESS_FLASH_DURATION_MS);
     } catch (err) {
       setIncomeError((err as Error).message);
     } finally {

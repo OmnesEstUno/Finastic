@@ -32,6 +32,7 @@ import DangerZone from '../components/DangerZone';
 import FeatureRequestCard from '../components/FeatureRequestCard';
 import FeatureRequestsAdminCard from '../components/FeatureRequestsAdminCard';
 import Layout from '../components/layout/Layout';
+import { TOUCH_SENSOR_DELAY_MS, TOUCH_SENSOR_TOLERANCE_PX } from '../utils/constants';
 
 interface CardVisibilityRowProps {
   id: CardId;
@@ -98,7 +99,7 @@ export default function Settings() {
   const { cardOrder, setCardOrder, hidden, toggleHidden } = useDashboardLayout(activeInstanceId);
   const sensors = useSensors(
     useSensor(MouseSensor),
-    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: TOUCH_SENSOR_DELAY_MS, tolerance: TOUCH_SENSOR_TOLERANCE_PX } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 

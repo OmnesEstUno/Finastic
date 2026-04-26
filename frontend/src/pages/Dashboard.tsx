@@ -57,6 +57,7 @@ import { useWorkspaces } from '../hooks/useWorkspaces';
 import { useDashboardLayout, CardId } from '../hooks/useDashboardLayout';
 import Layout from '../components/layout/Layout';
 import { useDataEntry } from '../contexts/DataEntryContext';
+import { TOUCH_SENSOR_DELAY_MS, TOUCH_SENSOR_TOLERANCE_PX } from '../utils/constants';
 
 // Undo-toast payload: what was just deleted, so we can restore it if the
 // user clicks Undo before the timeout fires.
@@ -105,7 +106,7 @@ export default function Dashboard() {
   const sensors = useSensors(
     useSensor(MouseSensor),
     useSensor(TouchSensor, {
-      activationConstraint: { delay: 200, tolerance: 5 },
+      activationConstraint: { delay: TOUCH_SENSOR_DELAY_MS, tolerance: TOUCH_SENSOR_TOLERANCE_PX },
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
