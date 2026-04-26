@@ -28,6 +28,7 @@ import {
 } from './workspace-invites';
 import {
   readAllYears,
+  readAllYearsWithVersion,
   readYears,
   writeAllYears,
   upsertInYear,
@@ -1125,7 +1126,8 @@ export default {
       // ── GET user categories (custom categories + description mappings) ──
       if (path === '/api/user-categories' && method === 'GET') {
         const raw = await env.FINANCE_KV.get(instanceKey(instanceId, 'data:userCategories'));
-        const data = raw ? JSON.parse(raw) : { customCategories: [], mappings: [] };
+        const data = raw ? JSON.parse(raw) : { customCategories: [], mappings: [], version: 0 };
+        if (typeof data.version !== 'number') data.version = 0;
         return respond(data, 200, cors);
       }
 
@@ -1151,9 +1153,13 @@ export default {
                 typeof m.category === 'string' && m.category.trim().length > 0,
             )
           : [];
+        // Read previous version to increment
+        const prevRaw = await env.FINANCE_KV.get(instanceKey(instanceId, 'data:userCategories'));
+        const prevData = prevRaw ? JSON.parse(prevRaw) : { version: 0 };
+        const prevVersion: number = typeof prevData.version === 'number' ? prevData.version : 0;
         await env.FINANCE_KV.put(
           instanceKey(instanceId, 'data:userCategories'),
-          JSON.stringify({ customCategories, mappings }),
+          JSON.stringify({ customCategories, mappings, version: prevVersion + 1 }),
         );
         return respond({ ok: true }, 200, cors);
       }
@@ -1259,7 +1265,8 @@ export default {
 
         // Update user categories document
         const raw = await env.FINANCE_KV.get(instanceKey(instanceId, 'data:userCategories'));
-        const userCats = raw ? JSON.parse(raw) as { customCategories: string[]; mappings: Array<{ pattern: string; category: string }> } : { customCategories: [], mappings: [] };
+        const userCats = raw ? JSON.parse(raw) as { customCategories: string[]; mappings: Array<{ pattern: string; category: string }>; version?: number } : { customCategories: [], mappings: [], version: 0 };
+        const userCatsVersion = typeof userCats.version === 'number' ? userCats.version : 0;
 
         // Rename in customCategories list (if the old name was a custom one)
         const wasCustom = userCats.customCategories.includes(from);
@@ -1280,7 +1287,7 @@ export default {
           return m;
         });
 
-        await env.FINANCE_KV.put(instanceKey(instanceId, 'data:userCategories'), JSON.stringify(userCats));
+        await env.FINANCE_KV.put(instanceKey(instanceId, 'data:userCategories'), JSON.stringify({ ...userCats, version: userCatsVersion + 1 }));
 
         return respond({ updated: txnUpdates, mappingsUpdated: mappingUpdates }, 200, cors);
       }
@@ -1309,12 +1316,13 @@ export default {
 
         // Remove from custom list + drop any mappings that pointed at this category
         const raw = await env.FINANCE_KV.get(instanceKey(instanceId, 'data:userCategories'));
-        const userCats = raw ? JSON.parse(raw) as { customCategories: string[]; mappings: Array<{ pattern: string; category: string }> } : { customCategories: [], mappings: [] };
+        const userCats = raw ? JSON.parse(raw) as { customCategories: string[]; mappings: Array<{ pattern: string; category: string }>; version?: number } : { customCategories: [], mappings: [], version: 0 };
+        const deleteCatVersion = typeof userCats.version === 'number' ? userCats.version : 0;
         userCats.customCategories = userCats.customCategories.filter((c) => c !== name);
         const mappingsBefore = userCats.mappings.length;
         userCats.mappings = userCats.mappings.filter((m) => m.category !== name);
         const mappingsRemoved = mappingsBefore - userCats.mappings.length;
-        await env.FINANCE_KV.put(instanceKey(instanceId, 'data:userCategories'), JSON.stringify(userCats));
+        await env.FINANCE_KV.put(instanceKey(instanceId, 'data:userCategories'), JSON.stringify({ ...userCats, version: deleteCatVersion + 1 }));
 
         return respond({ reassigned: txnUpdates, mappingsRemoved }, 200, cors);
       }
