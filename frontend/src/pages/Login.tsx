@@ -45,6 +45,7 @@ export default function Login() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [totpCode, setTotpCode] = useState('');
   const [totpSecret, setTotpSecret] = useState('');
+  const [setupToken, setSetupToken] = useState('');
   const [preAuthToken, setPreAuthToken] = useState('');
   const [inviteToken, setInviteToken] = useState('');
   const [error, setError] = useState('');
@@ -137,9 +138,10 @@ export default function Login() {
     }
     setLoading(true);
     try {
-      const { totpSecret: secret } = await initSetup(trimmedUsername, password, inviteToken);
+      const { totpSecret: secret, setupToken: token } = await initSetup(trimmedUsername, password, inviteToken);
       setUsername(trimmedUsername);
       setTotpSecret(secret);
+      setSetupToken(token);
       setStep('setup-totp');
     } catch (err) {
       setError((err as Error).message);
@@ -159,7 +161,7 @@ export default function Login() {
     }
     setLoading(true);
     try {
-      await confirmSetup(username, totpCode);
+      await confirmSetup(username, totpCode, setupToken);
       setStep('login-password');
       setPassword('');
       setTotpCode('');

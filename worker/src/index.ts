@@ -468,16 +468,29 @@ export default {
         };
         await env.FINANCE_KV.put(userKey(username, 'profile'), JSON.stringify(profile));
 
-        return respond({ totpSecret, username }, 200, cors);
+        const setupTokenId = crypto.randomUUID();
+        await env.FINANCE_KV.put(
+          `setup-token:${setupTokenId}`,
+          JSON.stringify({ username, inviteId: invite.id }),
+          { expirationTtl: 90 },
+        );
+        return respond({ totpSecret, username, setupToken: setupTokenId }, 200, cors);
       }
 
       // ── Confirm TOTP Setup ──
-      // TODO: consider tying init→confirm with a short-lived token for anti-race hardening.
-      //       Currently any caller who knows the username can attempt confirm; TOTP codes
-      //       rotate every 30s which limits the window, but a pre-auth token would close it.
       if (path === '/api/setup/confirm' && method === 'POST') {
-        const body = await request.json() as { username?: string; totpCode?: string };
+        const body = await request.json() as { username?: string; totpCode?: string; setupToken?: string };
+        const { setupToken } = body;
+        if (!setupToken || typeof setupToken !== 'string') {
+          return respond({ error: 'Missing setup token.' }, 400, cors);
+        }
+        const tokRaw = await env.FINANCE_KV.get(`setup-token:${setupToken}`);
+        if (!tokRaw) return respond({ error: 'Setup token expired. Please retry from invite link.' }, 400, cors);
+        const tok = JSON.parse(tokRaw) as { username: string; inviteId: string };
         const username = (body.username ?? '').trim().toLowerCase();
+        if (tok.username !== username) {
+          return respond({ error: 'Token does not match username.' }, 400, cors);
+        }
         const raw = await env.FINANCE_KV.get(userKey(username, 'profile'));
         if (!raw) return respond({ error: 'Setup not started for this user.' }, 400, cors);
         const profile = JSON.parse(raw) as { totpSecret: string; confirmed: boolean };
@@ -504,6 +517,7 @@ export default {
         await addUsername(env.FINANCE_KV, username);
         await env.FINANCE_KV.put('meta:initialized', 'true');
 
+        await env.FINANCE_KV.delete(`setup-token:${setupToken}`);
         return respond({ ok: true }, 200, cors);
       }
 

@@ -92,17 +92,17 @@ export async function getSetupStatus(): Promise<{ initialized: boolean; migratio
   return request('/api/setup/status');
 }
 
-export async function initSetup(username: string, password: string, inviteToken: string): Promise<{ totpSecret: string; username: string }> {
+export async function initSetup(username: string, password: string, inviteToken: string): Promise<{ totpSecret: string; username: string; setupToken: string }> {
   return request('/api/setup/init', {
     method: 'POST',
     body: JSON.stringify({ username, password, inviteToken }),
   });
 }
 
-export async function confirmSetup(username: string, totpCode: string): Promise<void> {
+export async function confirmSetup(username: string, totpCode: string, setupToken: string): Promise<void> {
   return request('/api/setup/confirm', {
     method: 'POST',
-    body: JSON.stringify({ username, totpCode }),
+    body: JSON.stringify({ username, totpCode, setupToken }),
   });
 }
 
