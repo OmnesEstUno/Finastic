@@ -914,6 +914,9 @@ export default {
         if (!Array.isArray(body.transactions) || body.transactions.length === 0) {
           return respond({ error: 'No transactions provided.' }, 400, cors);
         }
+        if (body.transactions.length > MAX_BATCH_SIZE) {
+          return respond({ error: `Batch exceeds maximum of ${MAX_BATCH_SIZE}.` }, 413, cors);
+        }
 
         const existing = await getTransactions(env.FINANCE_KV, instanceId);
 
@@ -1132,6 +1135,12 @@ export default {
           customCategories?: string[];
           mappings?: Array<{ pattern: string; category: string }>;
         };
+        if (Array.isArray(body.customCategories) && body.customCategories.length > MAX_BATCH_SIZE) {
+          return respond({ error: `Batch exceeds maximum of ${MAX_BATCH_SIZE}.` }, 413, cors);
+        }
+        if (Array.isArray(body.mappings) && body.mappings.length > MAX_BATCH_SIZE) {
+          return respond({ error: `Batch exceeds maximum of ${MAX_BATCH_SIZE}.` }, 413, cors);
+        }
         const customCategories = Array.isArray(body.customCategories)
           ? body.customCategories.filter((c): c is string => typeof c === 'string' && c.trim().length > 0)
           : [];
@@ -1155,6 +1164,12 @@ export default {
           return respond({ error: 'Only the workspace owner can delete data.' }, 403, cors);
         }
         const body = await request.json() as { transactionIds?: string[]; incomeIds?: string[] };
+        if (Array.isArray(body.transactionIds) && body.transactionIds.length > MAX_BULK_IDS) {
+          return respond({ error: `Batch exceeds maximum of ${MAX_BULK_IDS}.` }, 413, cors);
+        }
+        if (Array.isArray(body.incomeIds) && body.incomeIds.length > MAX_BULK_IDS) {
+          return respond({ error: `Batch exceeds maximum of ${MAX_BULK_IDS}.` }, 413, cors);
+        }
         const txnIds = new Set(Array.isArray(body.transactionIds) ? body.transactionIds : []);
         const incIds = new Set(Array.isArray(body.incomeIds) ? body.incomeIds : []);
 
