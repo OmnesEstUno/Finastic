@@ -92,10 +92,21 @@ function corsHeaders(origin: string | null, allowedOrigin: string): Record<strin
   };
 }
 
+const SECURITY_HEADERS: Record<string, string> = {
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'Referrer-Policy': 'no-referrer',
+  'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+};
+
 function respond(body: unknown, status: number, headers: Record<string, string>): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'Content-Type': 'application/json', ...headers },
+    headers: {
+      'Content-Type': 'application/json',
+      ...SECURITY_HEADERS,
+      ...headers,
+    },
   });
 }
 
