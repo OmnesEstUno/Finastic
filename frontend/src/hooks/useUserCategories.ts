@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { UserCategories, CategoryMapping, Category, BUILT_IN_CATEGORIES } from '../types';
-import { getUserCategories, saveUserCategories } from '../api/client';
+import { getUserCategories, saveUserCategories, ConflictError } from '../api/client';
 import { derivePattern } from '../utils/categories';
 
 /**
@@ -31,8 +31,22 @@ export function useUserCategories() {
 
   useEffect(() => {
     if (!loaded.current) return;
-    saveUserCategories(userCategories).catch((err) => {
-      console.error('Failed to save user categories', err);
+    saveUserCategories(userCategories).catch(async (err) => {
+      if (err instanceof ConflictError) {
+        // Refresh our local copy from the server so the version map is updated,
+        // then retry the save with the fresh version.
+        console.warn('User categories conflict detected; refreshing and retrying.');
+        try {
+          const fresh = await getUserCategories();
+          // Merge: prefer the in-memory changes over the server state for
+          // customCategories and mappings — caller's intent wins.
+          await saveUserCategories({ ...fresh, customCategories: userCategories.customCategories, mappings: userCategories.mappings });
+        } catch (retryErr) {
+          console.error('Failed to save user categories after conflict retry', retryErr);
+        }
+      } else {
+        console.error('Failed to save user categories', err);
+      }
     });
   }, [userCategories]);
 

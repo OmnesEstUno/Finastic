@@ -25,6 +25,7 @@ import {
   addIncome,
   updateTransaction,
   updateIncome,
+  ConflictError,
   AddTransactionInput,
   AddIncomeInput,
 } from '../api/client';
@@ -84,6 +85,9 @@ export default function Dashboard() {
 
   // Undo toast — populated right after a successful delete
   const [pendingUndo, setPendingUndo] = useState<PendingUndo | null>(null);
+
+  // Conflict toast — shown when a 409 is received from a write endpoint
+  const [conflictMessage, setConflictMessage] = useState<string | null>(null);
 
   // Custom categories used by the edit flow
   const { userCategories, addCustomCategory } = useUserCategories();
@@ -178,7 +182,12 @@ export default function Dashboard() {
         // Arm the undo toast
         setPendingUndo({ transactions: deletedTxns, income: deletedInc, label });
       } catch (err) {
-        window.alert(`Delete failed: ${(err as Error).message}`);
+        if (err instanceof ConflictError) {
+          await refetchAll();
+          setConflictMessage('Data was changed by another tab — please retry your action.');
+        } else {
+          window.alert(`Delete failed: ${(err as Error).message}`);
+        }
       }
     },
     [transactions, income, refetchAll],
@@ -218,7 +227,12 @@ export default function Dashboard() {
       }
       await refetchAll();
     } catch (err) {
-      window.alert(`Undo failed: ${(err as Error).message}`);
+      if (err instanceof ConflictError) {
+        await refetchAll();
+        setConflictMessage('Data was changed by another tab — please retry the undo.');
+      } else {
+        window.alert(`Undo failed: ${(err as Error).message}`);
+      }
     } finally {
       setPendingUndo(null);
     }
@@ -263,7 +277,12 @@ export default function Dashboard() {
         }
         await refetchAll();
       } catch (err) {
-        window.alert(`Update failed: ${(err as Error).message}`);
+        if (err instanceof ConflictError) {
+          await refetchAll();
+          setConflictMessage('Data was changed by another tab — please retry your update.');
+        } else {
+          window.alert(`Update failed: ${(err as Error).message}`);
+        }
       }
     },
     [transactions, refetchAll],
@@ -275,7 +294,12 @@ export default function Dashboard() {
         await updateIncome(id, updates);
         await refetchAll();
       } catch (err) {
-        window.alert(`Update failed: ${(err as Error).message}`);
+        if (err instanceof ConflictError) {
+          await refetchAll();
+          setConflictMessage('Data was changed by another tab — please retry your update.');
+        } else {
+          window.alert(`Update failed: ${(err as Error).message}`);
+        }
       }
     },
     [refetchAll],
@@ -692,6 +716,15 @@ export default function Dashboard() {
           onAction={handleUndo}
           onDismiss={() => setPendingUndo(null)}
           duration={5000}
+        />
+      )}
+
+      {/* Conflict toast — shown when a 409 stale-write is detected */}
+      {conflictMessage && !pendingUndo && (
+        <Toast
+          message={conflictMessage}
+          onDismiss={() => setConflictMessage(null)}
+          duration={6000}
         />
       )}
     </Layout>

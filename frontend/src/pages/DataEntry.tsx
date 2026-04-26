@@ -8,6 +8,7 @@ import {
   addIncome,
   getTransactions,
   getIncome,
+  ConflictError,
   AddTransactionInput,
 } from '../api/client';
 import { formatCurrency } from '../utils/dataProcessing';
@@ -342,7 +343,13 @@ export default function DataEntry({ onRequestClose, onPendingChange }: DataEntry
         onRequestClose();
       }, SUCCESS_FLASH_DURATION_MS);
     } catch (err) {
-      setSubmitError((err as Error).message);
+      if (err instanceof ConflictError) {
+        // Refresh versions, then surface a user-actionable message
+        await Promise.all([getTransactions(), getIncome()]);
+        setSubmitError('Data was changed by another tab while importing. Please retry the import.');
+      } else {
+        setSubmitError((err as Error).message);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -374,7 +381,12 @@ export default function DataEntry({ onRequestClose, onPendingChange }: DataEntry
         onRequestClose();
       }, SUCCESS_FLASH_DURATION_MS);
     } catch (err) {
-      setManualError((err as Error).message);
+      if (err instanceof ConflictError) {
+        await getTransactions();
+        setManualError('Data was changed by another tab — please retry.');
+      } else {
+        setManualError((err as Error).message);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -472,7 +484,12 @@ export default function DataEntry({ onRequestClose, onPendingChange }: DataEntry
         onRequestClose();
       }, SUCCESS_FLASH_DURATION_MS);
     } catch (err) {
-      setIncomeError((err as Error).message);
+      if (err instanceof ConflictError) {
+        await getIncome();
+        setIncomeError('Data was changed by another tab — please retry.');
+      } else {
+        setIncomeError((err as Error).message);
+      }
     } finally {
       setSubmitting(false);
     }

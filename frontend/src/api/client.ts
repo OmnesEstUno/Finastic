@@ -2,6 +2,37 @@ import { IncomeEntry, Instance, Transaction, UserCategories } from '../types';
 import { STORAGE_KEYS } from '../utils/constants';
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8787';
+
+// ─── Optimistic-concurrency version tracking ──────────────────────────────────
+
+/**
+ * Thrown when the server returns 409 (stale write).  Callers can check
+ * `instanceof ConflictError` to surface a "please retry" message.
+ */
+export class ConflictError extends Error {
+  public readonly currentVersion: number | undefined;
+  constructor(message: string, currentVersion?: number) {
+    super(message);
+    this.name = 'ConflictError';
+    this.currentVersion = currentVersion;
+  }
+}
+
+/**
+ * Module-level store for the last known version of each versioned resource.
+ * Keyed by resource name: 'transactions', 'income', 'userCategories'.
+ * Read functions populate this automatically; mutation functions read from it.
+ */
+const resourceVersions = new Map<string, number>();
+
+function rememberVersion(resource: string, version: number): void {
+  resourceVersions.set(resource, version);
+}
+
+export function lastKnownVersion(resource: string): number | undefined {
+  return resourceVersions.get(resource);
+}
+
 const activeInstanceListeners = new Set<(id: string | null) => void>();
 
 function notifyActiveInstanceChange(id: string | null): void {
@@ -77,6 +108,14 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     notifyActiveInstanceChange(null);
     window.location.hash = '#/login';
     throw new Error('Session expired. Please log in again.');
+  }
+
+  if (res.status === 409) {
+    const body = await res.json().catch(() => null) as { currentVersion?: number } | null;
+    throw new ConflictError(
+      'Data was changed by another tab or device. Please retry.',
+      body?.currentVersion,
+    );
   }
 
   const data = await res.json().catch(() => ({ error: 'Unexpected server response.' }));
@@ -178,10 +217,12 @@ export async function setActiveInstance(instanceId: string): Promise<void> {
 /**
  * Fetch all transactions. Pass `year` to scope the request to a single
  * calendar year (Task 9's YearSelector can opt into this for large datasets).
+ * Always remembers the returned version for use by subsequent write calls.
  */
 export async function getTransactions(year?: number): Promise<Transaction[]> {
   const qs = year ? `?year=${year}` : '';
-  const r = await request<{ transactions: Transaction[] }>(`/api/transactions${qs}`);
+  const r = await request<{ transactions: Transaction[]; version: number }>(`/api/transactions${qs}`);
+  rememberVersion('transactions', r.version);
   return r.transactions;
 }
 
@@ -193,9 +234,13 @@ export type AddTransactionInput = Omit<Transaction, 'id'> & { allowDuplicate?: b
 export async function addTransactions(
   transactions: AddTransactionInput[],
 ): Promise<{ added: number; skipped: number }> {
+  const expectedVersion = lastKnownVersion('transactions');
+  if (expectedVersion === undefined) {
+    throw new Error('Cannot add transactions without first fetching them.');
+  }
   return request('/api/transactions', {
     method: 'POST',
-    body: JSON.stringify({ transactions }),
+    body: JSON.stringify({ transactions, expectedVersion }),
   });
 }
 
@@ -213,9 +258,13 @@ export async function bulkUpdateCategory(
   newCategory: string,
   previousCategory?: string,
 ): Promise<{ updated: number }> {
+  const expectedVersion = lastKnownVersion('transactions');
+  if (expectedVersion === undefined) {
+    throw new Error('Cannot bulk-update categories without first fetching transactions.');
+  }
   return request('/api/transactions/bulk-update-category', {
     method: 'POST',
-    body: JSON.stringify({ pattern, newCategory, previousCategory }),
+    body: JSON.stringify({ pattern, newCategory, previousCategory, expectedVersion }),
   });
 }
 
@@ -224,10 +273,12 @@ export async function bulkUpdateCategory(
 /**
  * Fetch all income entries. Pass `year` to scope the request to a single
  * calendar year (Task 9's YearSelector can opt into this for large datasets).
+ * Always remembers the returned version for use by subsequent write calls.
  */
 export async function getIncome(year?: number): Promise<IncomeEntry[]> {
   const qs = year ? `?year=${year}` : '';
-  const r = await request<{ income: IncomeEntry[] }>(`/api/income${qs}`);
+  const r = await request<{ income: IncomeEntry[]; version: number }>(`/api/income${qs}`);
+  rememberVersion('income', r.version);
   return r.income;
 }
 
@@ -236,9 +287,13 @@ export type AddIncomeInput = Omit<IncomeEntry, 'id'> & { allowDuplicate?: boolea
 export async function addIncome(
   entry: AddIncomeInput,
 ): Promise<{ skipped: boolean; entry: IncomeEntry | null }> {
+  const expectedVersion = lastKnownVersion('income');
+  if (expectedVersion === undefined) {
+    throw new Error('Cannot add income without first fetching income entries.');
+  }
   return request('/api/income', {
     method: 'POST',
-    body: JSON.stringify({ entry }),
+    body: JSON.stringify({ entry, expectedVersion }),
   });
 }
 
@@ -258,9 +313,20 @@ export async function bulkDelete(
   transactionIds: string[],
   incomeIds: string[],
 ): Promise<{ deletedTransactions: number; deletedIncome: number }> {
+  const body: Record<string, unknown> = { transactionIds, incomeIds };
+  if (transactionIds.length > 0) {
+    const v = lastKnownVersion('transactions');
+    if (v === undefined) throw new Error('Cannot delete transactions without first fetching them.');
+    body.expectedTransactionsVersion = v;
+  }
+  if (incomeIds.length > 0) {
+    const v = lastKnownVersion('income');
+    if (v === undefined) throw new Error('Cannot delete income entries without first fetching them.');
+    body.expectedIncomeVersion = v;
+  }
   return request('/api/bulk-delete', {
     method: 'POST',
-    body: JSON.stringify({ transactionIds, incomeIds }),
+    body: JSON.stringify(body),
   });
 }
 
@@ -281,9 +347,17 @@ export async function renameCategory(
   from: string,
   to: string,
 ): Promise<{ updated: number; mappingsUpdated: number }> {
+  const expectedTransactionsVersion = lastKnownVersion('transactions');
+  const expectedUserCategoriesVersion = lastKnownVersion('userCategories');
+  if (expectedTransactionsVersion === undefined) {
+    throw new Error('Cannot rename category without first fetching transactions.');
+  }
+  if (expectedUserCategoriesVersion === undefined) {
+    throw new Error('Cannot rename category without first fetching user categories.');
+  }
   return request('/api/rename-category', {
     method: 'POST',
-    body: JSON.stringify({ from, to }),
+    body: JSON.stringify({ from, to, expectedTransactionsVersion, expectedUserCategoriesVersion }),
   });
 }
 
@@ -294,22 +368,37 @@ export async function deleteCategory(
   name: string,
   reassignTo = 'Other',
 ): Promise<{ reassigned: number; mappingsRemoved: number }> {
+  const expectedTransactionsVersion = lastKnownVersion('transactions');
+  const expectedUserCategoriesVersion = lastKnownVersion('userCategories');
+  if (expectedTransactionsVersion === undefined) {
+    throw new Error('Cannot delete category without first fetching transactions.');
+  }
+  if (expectedUserCategoriesVersion === undefined) {
+    throw new Error('Cannot delete category without first fetching user categories.');
+  }
   return request('/api/delete-category', {
     method: 'POST',
-    body: JSON.stringify({ name, reassignTo }),
+    body: JSON.stringify({ name, reassignTo, expectedTransactionsVersion, expectedUserCategoriesVersion }),
   });
 }
 
 // ─── User Categories ─────────────────────────────────────────────────────────
 
 export async function getUserCategories(): Promise<UserCategories> {
-  return request('/api/user-categories');
+  const r = await request<UserCategories & { version: number }>('/api/user-categories');
+  rememberVersion('userCategories', r.version);
+  // Return only the fields the rest of the frontend expects (strip version)
+  return { customCategories: r.customCategories, mappings: r.mappings };
 }
 
 export async function saveUserCategories(data: UserCategories): Promise<void> {
+  const expectedVersion = lastKnownVersion('userCategories');
+  if (expectedVersion === undefined) {
+    throw new Error('Cannot save user categories without first fetching them.');
+  }
   await request('/api/user-categories', {
     method: 'PUT',
-    body: JSON.stringify(data),
+    body: JSON.stringify({ ...data, expectedVersion }),
   });
 }
 

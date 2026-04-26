@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getTransactions, getIncome, renameCategory, deleteCategory } from '../api/client';
+import { getTransactions, getIncome, renameCategory, deleteCategory, ConflictError } from '../api/client';
 import { IncomeEntry, Transaction } from '../types';
 import { useUserCategories } from '../hooks/useUserCategories';
 import { getCategoryColor } from '../utils/categories';
@@ -167,7 +167,12 @@ export default function Settings() {
       });
       await refreshTransactions();
     } catch (err) {
-      setStatus({ kind: 'error', text: (err as Error).message });
+      if (err instanceof ConflictError) {
+        await refreshTransactions();
+        setStatus({ kind: 'error', text: 'Data was changed by another tab — please retry the rename.' });
+      } else {
+        setStatus({ kind: 'error', text: (err as Error).message });
+      }
     } finally {
       setBusy(false);
     }
@@ -199,7 +204,12 @@ export default function Settings() {
       }));
       await refreshTransactions();
     } catch (err) {
-      setStatus({ kind: 'error', text: (err as Error).message });
+      if (err instanceof ConflictError) {
+        await refreshTransactions();
+        setStatus({ kind: 'error', text: 'Data was changed by another tab — please retry the deletion.' });
+      } else {
+        setStatus({ kind: 'error', text: (err as Error).message });
+      }
     } finally {
       setBusy(false);
     }
