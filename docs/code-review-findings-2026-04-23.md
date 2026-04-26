@@ -64,7 +64,67 @@ Commented-out code sweep: 415 non-TODO/NOTE/FIXME comment lines audited. All are
 (Populated in Phase 6.)
 
 ### Hard-coded Values
-(Populated in Phase 4.)
+
+**Task 4.2 result: 24 replacements across 11 source files; all literals migrated to `frontend/src/utils/constants.ts`.**
+
+#### Storage Keys (`STORAGE_KEYS`)
+
+`STORAGE_KEYS.HIDDEN` was added to the constant object as part of this task (the other five keys already existed from Task 4.1).
+
+| Constant | Replaced in file(s) | Count |
+|----------|--------------------|----|
+| `STORAGE_KEYS.TOKEN` | `api/client.ts` | 3 |
+| `STORAGE_KEYS.USERNAME` | `api/client.ts` | 4 |
+| `STORAGE_KEYS.ACTIVE_INSTANCE` | `api/client.ts` (was `ACTIVE_INSTANCE_STORAGE_KEY`) | 4 |
+| `STORAGE_KEYS.PENDING_WORKSPACE_INVITE` | `pages/WorkspaceInvitePage.tsx`, `pages/Login.tsx` | 5 |
+| `STORAGE_KEYS.DASHBOARD_ORDER` | `hooks/useDashboardLayout.ts` | 2 |
+| `STORAGE_KEYS.DASHBOARD_MINIMIZED` | `hooks/useDashboardLayout.ts` | 2 |
+| `STORAGE_KEYS.HIDDEN` | `hooks/useDashboardLayout.ts` | 2 |
+
+#### Unix Ms Multiplier (`UNIX_MS_MULTIPLIER`)
+
+| Constant | Replaced in file(s) | Count |
+|----------|--------------------|----|
+| `UNIX_MS_MULTIPLIER` (was `* 1000`) | `components/InviteTokensCard.tsx`, `components/WorkspacesCard.tsx`, `pages/WorkspaceInvitePage.tsx` | 3 |
+
+Not replaced: `frontend/src/utils/dataProcessing.ts:92` — `span / (24 * 60 * 60 * 1000)` converts milliseconds to days; this is a different domain (ms→days, not unix→ms) and has no matching constant.
+
+#### Timing Constants
+
+| Constant | Replaced in file(s) | Count |
+|----------|--------------------|----|
+| `TOAST_DEFAULT_DURATION_MS` (was `5000`) | `components/Toast.tsx` | 1 |
+| `TOAST_TICK_INTERVAL_MS` (was `50`) | `components/Toast.tsx` | 1 |
+| `SUCCESS_FLASH_DURATION_MS` (was `1200`) | `pages/DataEntry.tsx` | 3 |
+| `TOUCH_SENSOR_DELAY_MS` (was `200`) | `pages/Dashboard.tsx`, `pages/Settings.tsx` | 2 |
+| `TOUCH_SENSOR_TOLERANCE_PX` (was `5`) | `pages/Dashboard.tsx`, `pages/Settings.tsx` | 2 |
+
+Not replaced: `transition: 'width 50ms linear'` in `Toast.tsx` — this is a CSS duration string (not a JS numeric literal), a distinct value that happens to match `TOAST_TICK_INTERVAL_MS` only coincidentally.
+
+#### Chart Constants
+
+| Constant | Replaced in file(s) | Count |
+|----------|--------------------|----|
+| `CHART_HEIGHT_PX` (was `400`) | `components/charts/CategoryLineChart.tsx` | 1 |
+| `CHART_Y_AXIS_HEADROOM` (was `1.1`) | `components/charts/CategoryLineChart.tsx` | 1 |
+| `CHART_Y_TICK_STEP` (was `50`) | `components/charts/CategoryLineChart.tsx` | 2 |
+
+#### Year-Range Constants
+
+| Constant | Replaced in file(s) | Count |
+|----------|--------------------|----|
+| `YEAR_LOOKBACK` (was `- 10`) | `components/DateRangePicker.tsx`, `pages/Dashboard.tsx` | 3 |
+| `YEAR_LOOKFORWARD` (was `+ 10`) | `components/DateRangePicker.tsx` | 1 |
+
+#### Auth-Validation Constants
+
+| Constant | Replaced in file(s) | Count |
+|----------|--------------------|----|
+| `PASSWORD_MIN_LENGTH` (was `8`) | `pages/Login.tsx` | 2 |
+| `USERNAME_REGEX` (was `/^[a-z0-9_-]{3,32}$/`) | `pages/Login.tsx` | 2 |
+| `USERNAME_HINT` (was `'3–32 characters: lowercase letters, digits, underscore, or dash.'`) | `pages/Login.tsx` | 2 |
+
+Note: The error message strings `'Username must be 3–32 characters...'` were NOT replaced with `USERNAME_HINT` because they contain additional prose (`'Username must be '` prefix) and do not match the constant's value verbatim.
 
 ### CSS / Responsive Units
 (Populated in Phases 7–9.)
