@@ -35,7 +35,7 @@ import {
   deleteFromAnyYear,
   yearOfISODate,
 } from './paginated';
-import { JWT_TTL_SECONDS, PREAUTH_TTL_SECONDS, KV_PREFIXES } from './constants';
+import { JWT_TTL_SECONDS, PREAUTH_TTL_SECONDS, KV_PREFIXES, LOGIN_MAX_ATTEMPTS, LOGIN_LOCKOUT_SECONDS, TOTP_MAX_ATTEMPTS, TOTP_LOCKOUT_SECONDS } from './constants';
 
 export interface Env {
   FINANCE_KV: KVNamespace;
@@ -202,6 +202,42 @@ async function resolveInstance(
   const instance = JSON.parse(raw) as Instance;
   if (!instance.members.includes(auth.username)) return respond({ error: 'Forbidden.' }, 403, cors);
   return { instanceId, instance };
+}
+
+// ─── Rate limiting (per-key, KV-backed; eventually-consistent) ────────────────
+//
+// Cloudflare KV is eventually consistent — two concurrent requests at the same
+// edge POP can both read the pre-increment count. For brute-force traffic that
+// serializes to one POP per attacker, this still works. Documented limitation.
+
+interface RateLimitState { count: number; firstAt: number; }
+
+async function checkAndIncrement(
+  kv: KVNamespace,
+  key: string,
+  maxAttempts: number,
+  windowSeconds: number,
+): Promise<{ allowed: boolean; remainingSeconds: number }> {
+  const raw = await kv.get(key);
+  const now = Math.floor(Date.now() / 1000);
+  let state: RateLimitState;
+  if (raw) {
+    state = JSON.parse(raw) as RateLimitState;
+    if (now - state.firstAt > windowSeconds) {
+      state = { count: 1, firstAt: now };
+    } else {
+      state = { count: state.count + 1, firstAt: state.firstAt };
+    }
+  } else {
+    state = { count: 1, firstAt: now };
+  }
+  const remainingSeconds = Math.max(0, windowSeconds - (now - state.firstAt));
+  await kv.put(key, JSON.stringify(state), { expirationTtl: Math.max(60, remainingSeconds) });
+  return { allowed: state.count <= maxAttempts, remainingSeconds };
+}
+
+async function clearRateLimit(kv: KVNamespace, key: string): Promise<void> {
+  await kv.delete(key);
 }
 
 // ─── Timing-safe dummy hash (lazy, computed once per worker lifetime) ─────────
@@ -477,6 +513,13 @@ export default {
         const username = (body.username ?? '').trim().toLowerCase();
         if (!username || !body.password) return respond({ error: 'Invalid credentials.' }, 401, cors);
 
+        // Rate-limit before any KV reads — covers both "user not found" and "wrong password" paths.
+        const limitKey = KV_PREFIXES.RATELIMIT_LOGIN(username);
+        const rl = await checkAndIncrement(env.FINANCE_KV, limitKey, LOGIN_MAX_ATTEMPTS, LOGIN_LOCKOUT_SECONDS);
+        if (!rl.allowed) {
+          return respond({ error: `Too many attempts. Try again in ${Math.ceil(rl.remainingSeconds / 60)} minute(s).` }, 429, cors);
+        }
+
         const raw = await env.FINANCE_KV.get(userKey(username, 'profile'));
         if (!raw) {
           // Run a dummy verify to equalize response time regardless of whether
@@ -488,6 +531,9 @@ export default {
 
         const valid = await verifyPassword(body.password, profile.passwordHash);
         if (!valid) return respond({ error: 'Invalid credentials.' }, 401, cors);
+
+        // Clear rate-limit counter on successful password verification.
+        await clearRateLimit(env.FINANCE_KV, limitKey);
 
         const preAuthId = crypto.randomUUID();
         const preAuthToken = await signJWT(
@@ -518,8 +564,16 @@ export default {
         }
 
         const username = payload.username;
-        const stored = await env.FINANCE_KV.get(KV_PREFIXES.PREAUTH(payload.id));
+        const preAuthId = payload.id;
+        const stored = await env.FINANCE_KV.get(KV_PREFIXES.PREAUTH(preAuthId));
         if (stored !== username) return respond({ error: 'Session expired.' }, 401, cors);
+
+        // Rate-limit by preauth token ID before checking the TOTP code.
+        const totpLimitKey = KV_PREFIXES.RATELIMIT_TOTP(preAuthId);
+        const totpRl = await checkAndIncrement(env.FINANCE_KV, totpLimitKey, TOTP_MAX_ATTEMPTS, TOTP_LOCKOUT_SECONDS);
+        if (!totpRl.allowed) {
+          return respond({ error: `Too many attempts. Try again in ${totpRl.remainingSeconds} second(s).` }, 429, cors);
+        }
 
         const raw = await env.FINANCE_KV.get(userKey(username, 'profile'));
         if (!raw) return respond({ error: 'User not found.' }, 401, cors);
@@ -528,7 +582,9 @@ export default {
         const valid = await verifyTOTP(profile.totpSecret, body.totpCode);
         if (!valid) return respond({ error: 'Invalid or expired code.' }, 401, cors);
 
-        await env.FINANCE_KV.delete(KV_PREFIXES.PREAUTH(payload.id));
+        // Clear rate-limit and preauth token on success.
+        await clearRateLimit(env.FINANCE_KV, totpLimitKey);
+        await env.FINANCE_KV.delete(KV_PREFIXES.PREAUTH(preAuthId));
 
         const token = await signJWT(
           { authenticated: true, username, exp: Math.floor(Date.now() / 1000) + JWT_TTL_SECONDS },

@@ -15,3 +15,8 @@ export const KV_PREFIXES = {
   RATELIMIT_TOTP: (preauthId: string) => `ratelimit:totp:${preauthId}`,
   AUDIT: (ts: number, id: string) => `audit:${ts}:${id}`,
 } as const;
+
+export const LOGIN_MAX_ATTEMPTS = 5;
+export const LOGIN_LOCKOUT_SECONDS = 15 * 60;
+export const TOTP_MAX_ATTEMPTS = 5;
+export const TOTP_LOCKOUT_SECONDS = 60;
