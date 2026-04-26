@@ -903,10 +903,15 @@ export default {
       if (path === '/api/transactions' && method === 'GET') {
         const yearParam = url.searchParams.get('year');
         const prefix = instanceKey(instanceId, 'data:transactions');
-        const txns = yearParam
-          ? await readYears<Transaction>(env.FINANCE_KV, prefix, [Number(yearParam)])
-          : await readAllYears<Transaction>(env.FINANCE_KV, prefix);
-        return respond({ transactions: txns }, 200, cors);
+        if (yearParam) {
+          // Year-scoped read: return items from that shard only.
+          // Version still comes from the index so the client always has a consistent version.
+          const { version } = await readAllYearsWithVersion<Transaction>(env.FINANCE_KV, prefix);
+          const txns = await readYears<Transaction>(env.FINANCE_KV, prefix, [Number(yearParam)]);
+          return respond({ transactions: txns, version }, 200, cors);
+        }
+        const { items: txns, version } = await readAllYearsWithVersion<Transaction>(env.FINANCE_KV, prefix);
+        return respond({ transactions: txns, version }, 200, cors);
       }
 
       // ── POST transactions (batch) ──
@@ -1002,10 +1007,13 @@ export default {
       if (path === '/api/income' && method === 'GET') {
         const yearParam = url.searchParams.get('year');
         const prefix = instanceKey(instanceId, 'data:income');
-        const entries = yearParam
-          ? await readYears<IncomeEntry>(env.FINANCE_KV, prefix, [Number(yearParam)])
-          : await readAllYears<IncomeEntry>(env.FINANCE_KV, prefix);
-        return respond({ income: entries }, 200, cors);
+        if (yearParam) {
+          const { version } = await readAllYearsWithVersion<IncomeEntry>(env.FINANCE_KV, prefix);
+          const entries = await readYears<IncomeEntry>(env.FINANCE_KV, prefix, [Number(yearParam)]);
+          return respond({ income: entries, version }, 200, cors);
+        }
+        const { items: entries, version } = await readAllYearsWithVersion<IncomeEntry>(env.FINANCE_KV, prefix);
+        return respond({ income: entries, version }, 200, cors);
       }
 
       // ── POST income ──
