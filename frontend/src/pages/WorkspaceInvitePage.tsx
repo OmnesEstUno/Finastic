@@ -4,6 +4,7 @@ import { useCurrentUser } from '../hooks/useCurrentUser';
 import { useWorkspaces } from '../hooks/useWorkspaces';
 import { getWorkspaceInviteMeta, acceptWorkspaceInvite } from '../api/client';
 import Logo from '../components/Logo';
+import { STORAGE_KEYS } from '../utils/constants';
 
 interface InviteMeta {
   instanceName: string;
@@ -44,7 +45,7 @@ export default function WorkspaceInvitePage() {
 
     // If not logged in, stash the token and redirect to login
     if (!currentUser) {
-      sessionStorage.setItem('ft_pending_workspace_invite', decoded);
+      sessionStorage.setItem(STORAGE_KEYS.PENDING_WORKSPACE_INVITE, decoded);
       window.location.hash = '#/login';
       return;
     }
@@ -65,7 +66,7 @@ export default function WorkspaceInvitePage() {
     setActionError('');
     try {
       const result = await acceptWorkspaceInvite(token);
-      sessionStorage.removeItem('ft_pending_workspace_invite');
+      sessionStorage.removeItem(STORAGE_KEYS.PENDING_WORKSPACE_INVITE);
       await refresh();
       await switchTo(result.id);
       navigate('/dashboard');
@@ -76,12 +77,12 @@ export default function WorkspaceInvitePage() {
   }
 
   function handleDecline() {
-    sessionStorage.removeItem('ft_pending_workspace_invite');
+    sessionStorage.removeItem(STORAGE_KEYS.PENDING_WORKSPACE_INVITE);
     navigate('/dashboard');
   }
 
   function handleNavigateToWorkspace() {
-    sessionStorage.removeItem('ft_pending_workspace_invite');
+    sessionStorage.removeItem(STORAGE_KEYS.PENDING_WORKSPACE_INVITE);
     navigate('/dashboard');
   }
 

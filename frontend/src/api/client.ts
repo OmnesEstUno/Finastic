@@ -1,10 +1,7 @@
 import { IncomeEntry, Instance, Transaction, UserCategories } from '../types';
+import { STORAGE_KEYS } from '../utils/constants';
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8787';
-
-// ─── Same-tab active-instance listeners ──────────────────────────────────────
-
-const ACTIVE_INSTANCE_STORAGE_KEY = 'ft_active_instance';
 const activeInstanceListeners = new Set<(id: string | null) => void>();
 
 function notifyActiveInstanceChange(id: string | null): void {
@@ -17,12 +14,12 @@ export function subscribeActiveInstance(fn: (id: string | null) => void): () => 
 }
 
 export function getActiveInstanceId(): string | null {
-  return localStorage.getItem(ACTIVE_INSTANCE_STORAGE_KEY);
+  return localStorage.getItem(STORAGE_KEYS.ACTIVE_INSTANCE);
 }
 
 export function setActiveInstanceIdLocal(id: string | null): void {
-  if (id) localStorage.setItem(ACTIVE_INSTANCE_STORAGE_KEY, id);
-  else localStorage.removeItem(ACTIVE_INSTANCE_STORAGE_KEY);
+  if (id) localStorage.setItem(STORAGE_KEYS.ACTIVE_INSTANCE, id);
+  else localStorage.removeItem(STORAGE_KEYS.ACTIVE_INSTANCE);
   notifyActiveInstanceChange(id);
 }
 
@@ -42,19 +39,19 @@ export function subscribeUsername(fn: (u: string | null) => void): () => void {
 // ─── Token helpers ────────────────────────────────────────────────────────────
 
 function getToken(): string | null {
-  return localStorage.getItem('ft_token');
+  return localStorage.getItem(STORAGE_KEYS.TOKEN);
 }
 
 function setToken(token: string): void {
-  localStorage.setItem('ft_token', token);
+  localStorage.setItem(STORAGE_KEYS.TOKEN, token);
 }
 
 function clearToken(): void {
-  localStorage.removeItem('ft_token');
+  localStorage.removeItem(STORAGE_KEYS.TOKEN);
 }
 
 export function getCurrentUsername(): string | null {
-  return localStorage.getItem('ft_username');
+  return localStorage.getItem(STORAGE_KEYS.USERNAME);
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -74,9 +71,9 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   if (res.status === 401) {
     clearToken();
-    localStorage.removeItem('ft_username');
+    localStorage.removeItem(STORAGE_KEYS.USERNAME);
     notifyUsernameChange(null);
-    localStorage.removeItem(ACTIVE_INSTANCE_STORAGE_KEY);
+    localStorage.removeItem(STORAGE_KEYS.ACTIVE_INSTANCE);
     notifyActiveInstanceChange(null);
     window.location.hash = '#/login';
     throw new Error('Session expired. Please log in again.');
@@ -122,7 +119,7 @@ export async function verify2FA(preAuthToken: string, totpCode: string): Promise
     body: JSON.stringify({ preAuthToken, totpCode }),
   });
   setToken(result.token);
-  localStorage.setItem('ft_username', result.username);
+  localStorage.setItem(STORAGE_KEYS.USERNAME, result.username);
   notifyUsernameChange(result.username);
   return result;
 }
@@ -132,9 +129,9 @@ export async function logout(): Promise<void> {
     await request('/api/auth/logout', { method: 'POST' });
   } finally {
     clearToken();
-    localStorage.removeItem('ft_username');
+    localStorage.removeItem(STORAGE_KEYS.USERNAME);
     notifyUsernameChange(null);
-    localStorage.removeItem(ACTIVE_INSTANCE_STORAGE_KEY);
+    localStorage.removeItem(STORAGE_KEYS.ACTIVE_INSTANCE);
     notifyActiveInstanceChange(null);
   }
 }

@@ -30,6 +30,7 @@ export const STORAGE_KEYS = {
   PENDING_WORKSPACE_INVITE: 'ft_pending_workspace_invite',
   DASHBOARD_ORDER: (instanceId: string) => `dashboard:cardOrder:${instanceId}`,
   DASHBOARD_MINIMIZED: (instanceId: string) => `dashboard:minimized:${instanceId}`,
+  HIDDEN: (instanceId: string) => `dashboard:hidden:${instanceId}`,
 } as const;
 
 // ── Backups ──────────────────────────────────────────────────────────────
