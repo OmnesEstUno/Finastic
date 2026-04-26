@@ -15,22 +15,24 @@ function accumulateByPeriod(
   transactions: Transaction[],
   incomeEntries: IncomeEntry[],
   periodKey: (date: Date) => string,
-  filterTx: (t: Transaction) => boolean,
-  filterIncome: (e: IncomeEntry) => boolean,
+  filterTx: (t: Transaction, date: Date) => boolean,
+  filterIncome: (e: IncomeEntry, date: Date) => boolean,
 ): Map<string, PeriodBucket> {
   const out = new Map<string, PeriodBucket>();
 
   for (const t of transactions) {
-    if (!filterTx(t)) continue;
-    const key = periodKey(parseISO(t.date));
+    const d = parseISO(t.date);
+    if (!filterTx(t, d)) continue;
+    const key = periodKey(d);
     const bucket = out.get(key) ?? { income: 0, expenses: 0 };
     bucket.expenses += Math.abs(t.amount);
     out.set(key, bucket);
   }
 
   for (const entry of incomeEntries) {
-    if (!filterIncome(entry)) continue;
-    const key = periodKey(parseISO(entry.date));
+    const d = parseISO(entry.date);
+    if (!filterIncome(entry, d)) continue;
+    const key = periodKey(d);
     const bucket = out.get(key) ?? { income: 0, expenses: 0 };
     bucket.income += entry.netAmount;
     out.set(key, bucket);
@@ -263,8 +265,9 @@ export function buildMonthlyBalance(
       transactions,
       incomeEntries,
       keyOf,
-      (t) => !t.archived && t.type === 'expense',
-      () => true,
+      (t, _d) => !t.archived && t.type === 'expense',
+      // Taxes are already tracked as separate transactions; income added wholesale here.
+      (_e, _d) => true,
     );
 
     return [...map.entries()]
@@ -287,9 +290,9 @@ export function buildMonthlyBalance(
     transactions,
     incomeEntries,
     (d) => String(d.getMonth()),
-    (t) => !t.archived && t.type === 'expense' && parseISO(t.date).getFullYear() === year,
-    (e) => parseISO(e.date).getFullYear() === year,
-    // Taxes are already tracked as separate transactions
+    (t, d) => !t.archived && t.type === 'expense' && d.getFullYear() === year,
+    // Taxes are already tracked as separate transactions; income added wholesale here.
+    (_e, d) => d.getFullYear() === year,
   );
 
   // Past years show all 12 months; current year truncates at the current month.
