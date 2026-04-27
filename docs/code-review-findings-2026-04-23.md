@@ -229,10 +229,25 @@ Note: The error message strings `'Username must be 3–32 characters...'` were N
 - `frontend/src/components/Toast.tsx` (progress bar width interpolated each tick)
 
 ### Resource Leaks
-(Populated in Phase 11.)
+
+**Phase 10 — unmount-safety + cleanup discipline.**
+
+- **DataEntry setTimeout** (`frontend/src/pages/DataEntry.tsx`): three `setTimeout(() => onRequestClose(), SUCCESS_FLASH_DURATION_MS)` calls in `submitUpload`, `submitManualExpense`, `submitManualIncome` previously fired even after the component unmounted, calling `onRequestClose` on a dead reference. Added `isMountedRef` with cleanup effect; each callback now guards with `if (!isMountedRef.current) return;`.
+- **Toast** (`frontend/src/components/Toast.tsx`): the `setInterval` progress tick used to call `onDismiss()` after duration, even if the Toast had unmounted (parent state update warning). Also, including `onDismiss` in the effect's dep array meant the countdown reset every parent render. Fixed both:
+  - `onDismissRef` updated via a sync effect; interval reads via the ref and drops `onDismiss` from deps (no more reset-on-render).
+  - `mountedRef` guards the dismiss call (no state updates on unmounted components).
+- **useWorkspaces hook**: already surfaces `error` state to callers; no change needed.
 
 ### Error Handling
-(Populated in Phase 12.)
+
+**Phase 10.3 — surface previously-swallowed errors.**
+
+- **`useUserCategories.ts`**: save errors (both conflict-retry and non-conflict catches) now set a `saveError` state field returned from the hook. Settings.tsx renders it as a second `alert-danger` banner.
+- **`Settings.tsx` `refreshTransactions`**: replaced silent `.catch` with `setStatus({ kind: 'error', text: 'Could not refresh data — some figures may be stale.' })`.
+- **`DataEntry.tsx` dedup lookup** (was `.catch(() => {})`): now sets a `dedupUnavailable` flag that renders an inline warning banner: "Duplicate detection unavailable — existing data could not be fetched. New rows may overlap with existing ones."
+
+**Intentionally non-surfacing catches (kept):**
+- `Settings.tsx handleRename/handleDelete` post-success `Promise.all([refreshTransactions(), getUserCategories()]).catch(() => undefined)` — post-success refresh; if it fails, the success message already shown is correct, and `refreshTransactions` sets its own error status anyway. Low-priority follow-up.
 
 ## Mobile / React Native Readiness
 (Populated in Phase 13.)
