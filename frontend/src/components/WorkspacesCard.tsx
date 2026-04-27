@@ -10,6 +10,7 @@ import {
   listWorkspaceInvites,
   deleteWorkspaceInvite,
   WorkspaceInviteSummary,
+  ConflictError,
 } from '../api/client';
 import { UNIX_MS_MULTIPLIER } from '../utils/constants';
 
@@ -143,7 +144,12 @@ export default function WorkspacesCard() {
       await renameInstance(id, next.trim());
       await refresh();
     } catch (err) {
-      setError((err as Error).message);
+      if (err instanceof ConflictError) {
+        setError('This workspace was modified by another session. The page has been refreshed — please try again.');
+        await refresh();
+      } else {
+        setError((err as Error).message);
+      }
     } finally {
       setBusy(false);
     }
@@ -172,7 +178,12 @@ export default function WorkspacesCard() {
       await removeInstanceMember(id, currentUser);
       await refresh();
     } catch (err) {
-      setError((err as Error).message);
+      if (err instanceof ConflictError) {
+        setError('This workspace was modified by another session. The page has been refreshed — please try again.');
+        await refresh();
+      } else {
+        setError((err as Error).message);
+      }
     } finally {
       setBusy(false);
     }
@@ -186,7 +197,12 @@ export default function WorkspacesCard() {
       await removeInstanceMember(id, memberUsername);
       await refresh();
     } catch (err) {
-      setError((err as Error).message);
+      if (err instanceof ConflictError) {
+        setError('This workspace was modified by another session. The page has been refreshed — please try again.');
+        await refresh();
+      } else {
+        setError((err as Error).message);
+      }
     } finally {
       setBusy(false);
     }

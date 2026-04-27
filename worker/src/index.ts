@@ -56,6 +56,8 @@ interface Instance {
   owner: string;
   members: string[];
   createdAt: string;
+  /** Optimistic-concurrency version.  Missing on legacy records → treated as 0. */
+  version: number;
 }
 
 // ─── User profile type ────────────────────────────────────────────────────────
@@ -667,7 +669,12 @@ export default {
         const instances: Instance[] = [];
         for (const id of profile.instanceIds ?? []) {
           const raw = await env.FINANCE_KV.get(instanceMetaKey(id));
-          if (raw) instances.push(JSON.parse(raw) as Instance);
+          if (raw) {
+            const inst = JSON.parse(raw) as Instance;
+            // Default missing version to 0 for legacy records
+            inst.version = inst.version ?? 0;
+            instances.push(inst);
+          }
         }
         return respond({ instances, activeInstanceId: profile.activeInstanceId ?? null }, 200, cors);
       }
@@ -678,7 +685,7 @@ export default {
         const name = (body.name ?? '').trim();
         if (!name) return respond({ error: 'Name required.' }, 400, cors);
         const id = crypto.randomUUID();
-        const instance: Instance = { id, name, owner: username, members: [username], createdAt: new Date().toISOString() };
+        const instance: Instance = { id, name, owner: username, members: [username], createdAt: new Date().toISOString(), version: 1 };
         await env.FINANCE_KV.put(instanceMetaKey(id), JSON.stringify(instance));
         const profile = await getUserProfile(env.FINANCE_KV, username);
         if (!profile) return respond({ error: 'User profile not found.' }, 500, cors);
@@ -714,19 +721,28 @@ export default {
         // Rename instance
         if ((m = path.match(/^\/api\/instances\/([^/]+)$/)) && method === 'PUT') {
           const id = m[1];
-          const body = await request.json() as { name?: string };
+          const body = await request.json() as { name?: string; expectedVersion?: number };
           const trimmed = (body.name ?? '').trim();
           if (!trimmed) return respond({ error: 'Name required.' }, 400, cors);
+          if (typeof body.expectedVersion !== 'number') return respond({ error: 'expectedVersion (number) required.' }, 400, cors);
           const raw = await env.FINANCE_KV.get(instanceMetaKey(id));
           if (!raw) return respond({ error: 'Not found.' }, 404, cors);
           const inst = JSON.parse(raw) as Instance;
           if (inst.owner !== username) return respond({ error: 'Only the owner can rename.' }, 403, cors);
+          const currentVersion = inst.version ?? 0;
+          if (body.expectedVersion !== currentVersion) {
+            return respond({ error: 'Conflict: instance was modified by another request.', currentVersion }, 409, cors);
+          }
           inst.name = trimmed;
+          inst.version = currentVersion + 1;
           await env.FINANCE_KV.put(instanceMetaKey(id), JSON.stringify(inst));
           return respond(inst, 200, cors);
         }
 
-        // Delete instance (owner only; removes data too)
+        // Delete instance (owner only; removes data too).
+        // EXEMPT from optimistic-concurrency: only the owner can delete, so a
+        // double-click race from two tabs results in the second call getting a 404
+        // — no silent data corruption is possible.
         if ((m = path.match(/^\/api\/instances\/([^/]+)$/)) && method === 'DELETE') {
           const id = m[1];
           const raw = await env.FINANCE_KV.get(instanceMetaKey(id));
@@ -767,6 +783,10 @@ export default {
         if ((m = path.match(/^\/api\/instances\/([^/]+)\/members\/([^/]+)$/)) && method === 'DELETE') {
           const id = m[1];
           const memberToRemove = m[2].toLowerCase();
+          const evParam = url.searchParams.get('expectedVersion');
+          if (evParam === null) return respond({ error: 'expectedVersion query parameter required.' }, 400, cors);
+          const expectedVersion = Number(evParam);
+          if (!Number.isFinite(expectedVersion)) return respond({ error: 'expectedVersion must be a number.' }, 400, cors);
           const raw = await env.FINANCE_KV.get(instanceMetaKey(id));
           if (!raw) return respond({ error: 'Not found.' }, 404, cors);
           const inst = JSON.parse(raw) as Instance;
@@ -774,7 +794,12 @@ export default {
           const isSelfRemoval = username === memberToRemove;
           if (!isOwner && !isSelfRemoval) return respond({ error: 'Only the owner can modify members.' }, 403, cors);
           if (inst.owner === memberToRemove) return respond({ error: 'Cannot remove the owner.' }, 400, cors);
+          const currentVersion = inst.version ?? 0;
+          if (expectedVersion !== currentVersion) {
+            return respond({ error: 'Conflict: instance was modified by another request.', currentVersion }, 409, cors);
+          }
           inst.members = inst.members.filter((u) => u !== memberToRemove);
+          inst.version = currentVersion + 1;
           await env.FINANCE_KV.put(instanceMetaKey(id), JSON.stringify(inst));
           const p = await getUserProfile(env.FINANCE_KV, memberToRemove);
           if (!p) return respond({ error: 'Member profile not found.' }, 500, cors);
@@ -787,7 +812,11 @@ export default {
 
       // ── Workspace Invite endpoints ──
 
-      // Accept workspace invite (any authenticated user)
+      // Accept workspace invite (any authenticated user).
+      // EXEMPT from optimistic-concurrency: the invite token itself proves
+      // authorization.  The accepting user has no prior read of the workspace
+      // (and no version to supply), and an "already a member" guard prevents
+      // duplicate-accept races from corrupting the members list.
       if (path === '/api/instances/invites/accept' && method === 'POST') {
         const body = await request.json() as { token?: string };
         const token = (body.token ?? '').trim();
@@ -800,6 +829,7 @@ export default {
         const inst = JSON.parse(instRaw) as Instance;
         if (inst.members.includes(auth.username)) return respond({ error: 'Already a member.' }, 400, cors);
         inst.members.push(auth.username);
+        inst.version = (inst.version ?? 0) + 1;
         await env.FINANCE_KV.put(instanceMetaKey(record.instanceId), JSON.stringify(inst));
         const memberProfile = await getUserProfile(env.FINANCE_KV, auth.username);
         if (!memberProfile) return respond({ error: 'User profile not found.' }, 500, cors);
