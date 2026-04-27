@@ -250,4 +250,58 @@ Note: The error message strings `'Username must be 3–32 characters...'` were N
 - `Settings.tsx handleRename/handleDelete` post-success `Promise.all([refreshTransactions(), getUserCategories()]).catch(() => undefined)` — post-success refresh; if it fails, the success message already shown is correct, and `refreshTransactions` sets its own error status anyway. Low-priority follow-up.
 
 ## Mobile / React Native Readiness
-(Populated in Phase 13.)
+
+**Phase 13 deliverable:** `docs/mobile-readiness.md` — a self-contained spec for the next agent who will port Lotus to React Native with offline support.
+
+The report catalogs:
+- **What's ready** — abstractions (storage/dialog/download wrappers, constants module), design tokens, responsive layout, optimistic-concurrency machinery, hardened backend.
+- **What still requires hands-on porting** — third-party libraries that don't have RN equivalents (recharts, react-datepicker, qrcode/qrcode.react, pdfjs-dist, dnd-kit, react-router-dom), DOM-only JSX primitives, CSS-to-StyleSheet migration, hash routing, form event-vs-text differences.
+- **Offline support design** — what was NOT built in this pass and the recommended approach: local cache layer, mutation queue, conflict resolution UI, sync indicator, background sync.
+- **Suggested migration order** — login scaffold → dashboard → data-entry → settings → offline → final QA.
+- **Breakage watch list** — areas to test specifically: TOTP QR rendering, CSV upload, PDF parsing, drag-reorder, charts, datepicker.
+
+See `docs/mobile-readiness.md` for the full report.
+
+## Summary & Delta
+
+**Cleanup branch:** `chore/code-review-cleanup` (off `main` @ `023a6a4`).
+
+**Code volume:**
+- Starting LOC (Phase 0): 11,750 (frontend/src + worker/src, .ts/.tsx/.css).
+- Final LOC: 12,759.
+- Delta: +1,009 lines (+8.6%).
+
+The line count grew despite removing duplication because the cleanup added substantial new functionality:
+- 6 new wrapper/constant modules (invite-primitives.ts, frontend constants.ts, worker constants.ts, dateConstants.ts, storage.ts, dialog.ts, download.ts).
+- Versioning code across worker and frontend (~360 lines for optimistic concurrency).
+- Rate-limiting helpers, security headers, and setup-token plumbing in the worker.
+- ~38 new CSS classes for extracted inline styles + design tokens (~80 lines added to index.css).
+- Error-surfacing UI in Settings, Dashboard, DataEntry.
+
+Net effect: the codebase is **better organized**, **more secure**, **race-condition-free**, **mobile-responsive**, and **closer to RN-portable** — even with more lines.
+
+**Commits:** 56 commits to `chore/code-review-cleanup` since `main`.
+
+**Highlights by category:**
+- **Dead code:** 7 dead exports removed; 1 magic constant inlined; 1 ESLint disable documented.
+- **Duplication:** ~228 lines of duplicated invite code → 222 lines across 3 files (1 shared module, 2 thin adapters); 1 month-name array deduplicated; `accumulateByPeriod` extracted from `buildMonthlyBalance`.
+- **Security:** 7 hardening fixes (headers, CORS, login rate-limit, TOTP rate-limit, setup-token binding, PBKDF2 600k+TOTP narrowing, body size caps).
+- **Concurrency:** 11 write endpoints now require `expectedVersion`; 4 versioned resources (transactions, income, user-categories, instance metadata); paginated-index write order fixed for crash-safety.
+- **Hard-coded values:** ~24 magic numbers and storage keys extracted to `frontend/src/utils/constants.ts`; 4 worker TTLs + KV-key helpers extracted to `worker/src/constants.ts`.
+- **CSS:** spacing/typography/z-index/touch-target tokens added; ~60 px values migrated to tokens; mobile-first breakpoints + fluid container/modal padding; 44px touch-target minimums; fluid h1/h2 typography.
+- **Inline styles:** ~38 static inline style sites moved to CSS classes across Layout, DashboardCard, DataEntry. Dynamic styles intentionally preserved.
+- **Resource leaks:** setTimeout cleanup guards in DataEntry; Toast unmount safety + dep-array fix.
+- **Error handling:** 3 swallowed-error sites now surface to UI (useUserCategories save, Settings refresh, DataEntry dedup lookup).
+- **RN prep:** storage/dialog/download wrappers introduced; ~30 callsites migrated.
+
+**What was deferred:**
+- **Phase 12 (DataEntry split):** skipped per user direction. The 1000-line DataEntry.tsx is left intact — its sub-flows are intertwined enough that the next agent can naturally split them per RN screen during the port.
+- **Pre-existing Dashboard.tsx oddness:** the dead `activeInstanceId === undefined` guard at line 135 remains (out of scope for cleanup; flagged for a future small refactor).
+- **Two-import-statement style** in `CategoryLineChart.tsx` (cosmetic, not an unused-import issue).
+- **`writeAllYears` ordering** in `worker/src/paginated.ts` — not changed; bulk-rewrite ordering is genuinely ambiguous and warrants a separate decision.
+
+## Next Steps
+
+1. Merge `chore/code-review-cleanup` to `main` (or open as a PR for review).
+2. Hand `docs/mobile-readiness.md` to the next agent who'll start the React Native port.
+3. Future small refactors as discovered: Dashboard.tsx effect simplification, CategoryLineChart import consolidation, writeAllYears ordering decision.
