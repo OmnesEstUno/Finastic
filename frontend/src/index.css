@@ -79,8 +79,8 @@ body { min-height: 100vh; background: var(--bg-base); }
 #root { min-height: 100vh; display: flex; flex-direction: column; }
 
 /* ─── Typography ─────────────────────────────────────────────────────────── */
-h1 { font-size: var(--font-size-3xl); font-weight: var(--font-weight-bold); letter-spacing: -0.025em; }
-h2 { font-size: var(--font-size-xl); font-weight: var(--font-weight-semibold); letter-spacing: -0.015em; }
+h1 { font-size: clamp(var(--font-size-2xl), 4vw, var(--font-size-3xl)); font-weight: var(--font-weight-bold); letter-spacing: -0.025em; }
+h2 { font-size: clamp(var(--font-size-lg), 2.5vw, var(--font-size-xl)); font-weight: var(--font-weight-semibold); letter-spacing: -0.015em; }
 h3 { font-size: var(--font-size-md); font-weight: var(--font-weight-semibold); }
 p  { color: var(--text-secondary); }
 a  { color: var(--accent); text-decoration: none; }
