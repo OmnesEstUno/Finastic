@@ -1065,3 +1065,177 @@ a:hover { color: var(--accent-hover); }
 .toggle-switch--on .toggle-switch__thumb {
   transform: translateX(18px);
 }
+
+/* ─── Data Entry page ────────────────────────────────────────────────────── */
+
+/* Section header block above the upload card */
+.data-entry-header {
+  margin-bottom: var(--space-6);
+}
+
+.data-entry-title {
+  font-size: var(--font-size-xl);
+  margin-bottom: var(--space-1);
+}
+
+/* Card with bottom margin (upload card) */
+.card-mb {
+  margin-bottom: var(--space-8);
+}
+
+/* Alert with bottom margin (success/error banners) */
+.alert-mb {
+  margin-bottom: var(--space-4);
+}
+
+/* Parse-error list wrapper */
+.parse-errors-list {
+  margin-bottom: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* Flex-shrink-0 for SVG icons inside alerts */
+.alert-icon {
+  flex-shrink: 0;
+}
+
+/* Decorative upload icon at reduced opacity */
+.drop-zone-upload-icon {
+  opacity: 0.5;
+}
+
+/* Hidden file inputs */
+.file-input-hidden {
+  display: none;
+}
+
+/* Preview table toolbar row */
+.preview-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-3);
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+/* Small button group (e.g. Clear / Import buttons) */
+.preview-btn-group {
+  display: flex;
+  gap: var(--space-2);
+}
+
+/* Alert variant: stacked column (duplicate banner, error detail) */
+.alert-stack {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+/* Alert inner row (icon + text) */
+.alert-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Alert inner row (icon + text, top-aligned for multi-line errors) */
+.alert-row-top {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+/* Flex-1 text container inside alert rows */
+.alert-body {
+  flex: 1;
+}
+
+/* Batch action button group inside alerts */
+.alert-btn-group {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+/* SVG icons that need top-alignment inside alert rows */
+.alert-icon-top {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* Narrow actions column in preview table */
+.table-actions-col {
+  width: 40px;
+}
+
+/* No-wrap table cell */
+.nowrap-cell {
+  white-space: nowrap;
+}
+
+/* Compact inline input in preview table */
+.input-compact {
+  padding: 4px 8px;
+  font-size: 0.8125rem;
+}
+
+/* Duplicate-match hint below description input */
+.duplicate-match-hint {
+  margin-top: var(--space-1);
+  padding-left: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Icon-only compact button (remove row, etc.) */
+.btn-icon-sm {
+  padding: 4px 8px;
+}
+
+/* Manual expense form */
+.manual-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: 560px;
+}
+
+/* Income form */
+.income-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  max-width: 600px;
+}
+
+/* Income form section dividers (Pay Amounts, Tax Deductions) */
+.income-section {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: var(--space-4);
+}
+
+/* Descriptive hint under an income section heading */
+.income-section-desc {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  margin-bottom: var(--space-3);
+}
+
+/* Income drop-zone with custom padding */
+.drop-zone-income {
+  margin-bottom: 20px;
+  padding: 24px 16px;
+}
+
+/* Spinner centered above drop-zone text while parsing */
+.spinner-centered {
+  margin: 0 auto var(--space-2);
+}
+
+/* Drop-zone primary text with tighter bottom margin */
+.drop-zone-text-tight {
+  margin-bottom: var(--space-1);
+}
