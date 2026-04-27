@@ -79,9 +79,9 @@ body { min-height: 100vh; background: var(--bg-base); }
 #root { min-height: 100vh; display: flex; flex-direction: column; }
 
 /* ─── Typography ─────────────────────────────────────────────────────────── */
-h1 { font-size: 1.875rem; font-weight: 700; letter-spacing: -0.025em; }
-h2 { font-size: 1.25rem; font-weight: 600; letter-spacing: -0.015em; }
-h3 { font-size: 1rem; font-weight: 600; }
+h1 { font-size: var(--font-size-3xl); font-weight: var(--font-weight-bold); letter-spacing: -0.025em; }
+h2 { font-size: var(--font-size-xl); font-weight: var(--font-weight-semibold); letter-spacing: -0.015em; }
+h3 { font-size: var(--font-size-md); font-weight: var(--font-weight-semibold); }
 p  { color: var(--text-secondary); }
 a  { color: var(--accent); text-decoration: none; }
 a:hover { color: var(--accent-hover); }
@@ -125,8 +125,8 @@ a:hover { color: var(--accent-hover); }
 }
 
 .navbar-brand {
-  font-size: 1rem;
-  font-weight: 700;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-bold);
   color: var(--text-primary);
   letter-spacing: -0.02em;
   display: flex;
@@ -135,8 +135,8 @@ a:hover { color: var(--accent-hover); }
 }
 
 .navbar-tagline {
-  font-size: 0.75rem;
-  font-weight: 400;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-regular);
   color: var(--text-muted);
   letter-spacing: 0;
   padding-left: 10px;
@@ -153,8 +153,8 @@ a:hover { color: var(--accent-hover); }
 .nav-link {
   padding: 6px 14px;
   border-radius: var(--radius-md);
-  font-size: 0.875rem;
-  font-weight: 500;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   color: var(--text-secondary);
   transition: all 0.15s;
   cursor: pointer;
@@ -194,8 +194,8 @@ a:hover { color: var(--accent-hover); }
   gap: var(--space-2);
   padding: var(--space-2) var(--space-4);
   border-radius: var(--radius-md);
-  font-size: 0.875rem;
-  font-weight: 500;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
   border: none;
   transition: all 0.15s;
@@ -238,7 +238,7 @@ a:hover { color: var(--accent-hover); }
 .form-group { display: flex; flex-direction: column; gap: var(--space-2); }
 .form-label {
   font-size: 0.8125rem;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   color: var(--text-secondary);
 }
 
@@ -247,7 +247,7 @@ a:hover { color: var(--accent-hover); }
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: var(--space-2) var(--space-3);
-  font-size: 0.875rem;
+  font-size: var(--font-size-sm);
   color: var(--text-primary);
   outline: none;
   transition: border-color 0.15s;
@@ -268,7 +268,7 @@ a:hover { color: var(--accent-hover); }
 .alert {
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-md);
-  font-size: 0.875rem;
+  font-size: var(--font-size-sm);
   display: flex;
   gap: var(--space-3);
   align-items: flex-start;
@@ -284,14 +284,14 @@ a:hover { color: var(--accent-hover); }
 .table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.875rem;
+  font-size: var(--font-size-sm);
 }
 .table th {
   padding: 10px 12px;
   text-align: left;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   color: var(--text-muted);
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   border-bottom: 1px solid var(--border-subtle);
@@ -342,7 +342,7 @@ a:hover { color: var(--accent-hover); }
   padding: 6px 14px;
   border-radius: 6px;
   font-size: 0.8125rem;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
   border: none;
   background: transparent;
@@ -355,16 +355,16 @@ a:hover { color: var(--accent-hover); }
 /* ─── Section Headers ────────────────────────────────────────────────────── */
 .section { margin-bottom: var(--space-8); }
 .section-title {
-  font-size: 1rem;
-  font-weight: 600;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
   margin-bottom: var(--space-4);
   display: flex;
   align-items: center;
   gap: var(--space-2);
 }
 .section-title .badge {
-  font-size: 0.75rem;
-  font-weight: 500;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
   padding: 2px 8px;
   border-radius: 999px;
   background: var(--accent-dim);
@@ -387,7 +387,7 @@ a:hover { color: var(--accent-hover); }
 }
 .drop-zone-icon { font-size: 2.5rem; margin-bottom: var(--space-3); opacity: 0.6; }
 .drop-zone-text { color: var(--text-secondary); margin-bottom: 6px; }
-.drop-zone-hint { font-size: 0.75rem; color: var(--text-muted); }
+.drop-zone-hint { font-size: var(--font-size-xs); color: var(--text-muted); }
 
 /* ─── Progress Bar ───────────────────────────────────────────────────────── */
 .progress-bar-track {
@@ -410,8 +410,8 @@ a:hover { color: var(--accent-hover); }
   gap: var(--space-1);
   padding: 2px 8px;
   border-radius: 999px;
-  font-size: 0.75rem;
-  font-weight: 500;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
   white-space: nowrap;
 }
 
@@ -463,9 +463,9 @@ a:hover { color: var(--accent-hover); }
   padding: var(--space-4) var(--space-5);
 }
 
-.stat-label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
-.stat-value { font-size: 1.5rem; font-weight: 700; font-variant-numeric: tabular-nums; }
-.stat-sub   { font-size: 0.75rem; color: var(--text-muted); margin-top: var(--space-1); }
+.stat-label { font-size: var(--font-size-xs); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+.stat-value { font-size: var(--font-size-2xl); font-weight: var(--font-weight-bold); font-variant-numeric: tabular-nums; }
+.stat-sub   { font-size: var(--font-size-xs); color: var(--text-muted); margin-top: var(--space-1); }
 .stat-positive { color: var(--success); }
 .stat-negative { color: var(--danger); }
 
@@ -499,8 +499,8 @@ a:hover { color: var(--accent-hover); }
 .mb-4 { margin-bottom: var(--space-4); }
 .mb-6 { margin-bottom: var(--space-6); }
 .w-full { width: 100%; }
-.text-sm { font-size: 0.875rem; }
-.text-xs { font-size: 0.75rem; }
+.text-sm { font-size: var(--font-size-sm); }
+.text-xs { font-size: var(--font-size-xs); }
 .text-muted { color: var(--text-muted); }
 .text-secondary { color: var(--text-secondary); }
 .text-success { color: var(--success); }
@@ -584,7 +584,7 @@ a:hover { color: var(--accent-hover); }
 .workspace-tab.active {
   background: var(--accent-dim);
   color: var(--accent);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 .workspace-tab:not(.active) {
@@ -830,7 +830,7 @@ a:hover { color: var(--accent-hover); }
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: var(--space-1) var(--space-2);
-  font-size: 0.875rem;
+  font-size: var(--font-size-sm);
   font-family: inherit;
   width: 140px;
   outline: none;
@@ -844,7 +844,7 @@ a:hover { color: var(--accent-hover); }
 
 /* Today's date marker when not selected */
 .react-datepicker__day--today {
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   color: var(--accent);
 }
 
@@ -889,7 +889,7 @@ a:hover { color: var(--accent-hover); }
 
 /* ─── Dashboard card buttons — 2x sizing override (excludes category chips) ── */
 .card .btn { padding: var(--space-4) var(--space-8); font-size: 1.0625rem; }
-.card .btn-sm { padding: 10px 20px; font-size: 1rem; }
+.card .btn-sm { padding: 10px 20px; font-size: var(--font-size-md); }
 .card .btn-lg { padding: 22px 44px; font-size: 1.1875rem; }
 /* CheckmarkToggle renders a <button> without .btn, so category chips are unaffected. */
 /* Drag handle uses .dashboard-card-handle (no .btn class), also unaffected. */
@@ -937,8 +937,8 @@ a:hover { color: var(--accent-hover); }
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
-  font-weight: 600;
-  font-size: 0.75rem;
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-xs);
   text-align: center;
   line-height: 1.1;
   z-index: var(--z-sticky);
@@ -951,8 +951,8 @@ a:hover { color: var(--accent-hover); }
 }
 .fab-enter-data:active { transform: translateY(0); }
 .fab-enter-data-label {
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
 }
 
 /* ─── Toggle Switch ──────────────────────────────────────────────────────── */
