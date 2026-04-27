@@ -93,7 +93,7 @@ function CardVisibilityRow({ id, label, checked, onToggle }: CardVisibilityRowPr
  * categories and the pattern→category mappings.
  */
 export default function Settings() {
-  const { userCategories, setUserCategories } = useUserCategories();
+  const { userCategories, setUserCategories, saveError } = useUserCategories();
   const currentUser = useCurrentUser();
   const { isActiveOwner, activeInstanceId } = useWorkspaces();
   const { cardOrder, setCardOrder, hidden, toggleHidden } = useDashboardLayout(activeInstanceId);
@@ -139,8 +139,9 @@ export default function Settings() {
       const [txns, inc] = await Promise.all([getTransactions(), getIncome()]);
       setTransactions(txns);
       setIncome(inc);
-    } catch {
-      /* non-fatal */
+    } catch (err) {
+      console.error('Failed to refresh transactions/income in Settings', err);
+      setStatus({ kind: 'error', text: 'Could not refresh data — some figures may be stale.' });
     }
   }
 
@@ -265,6 +266,11 @@ export default function Settings() {
           style={{ marginBottom: 20 }}
         >
           {status.text}
+        </div>
+      )}
+      {saveError && (
+        <div className="alert alert-danger" style={{ marginBottom: 20 }}>
+          {saveError}
         </div>
       )}
 

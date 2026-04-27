@@ -16,6 +16,7 @@ export function useUserCategories() {
     customCategories: [],
     mappings: [],
   });
+  const [saveError, setSaveError] = useState<string | null>(null);
   const loaded = useRef(false);
 
   useEffect(() => {
@@ -41,11 +42,14 @@ export function useUserCategories() {
           // Merge: prefer the in-memory changes over the server state for
           // customCategories and mappings — caller's intent wins.
           await saveUserCategories({ ...fresh, customCategories: userCategories.customCategories, mappings: userCategories.mappings });
+          setSaveError(null);
         } catch (retryErr) {
           console.error('Failed to save user categories after conflict retry', retryErr);
+          setSaveError('Your category changes could not be saved. Please refresh and try again.');
         }
       } else {
         console.error('Failed to save user categories', err);
+        setSaveError('Your category changes could not be saved. Please refresh and try again.');
       }
     });
   }, [userCategories]);
@@ -102,5 +106,6 @@ export function useUserCategories() {
     setUserCategories,
     addCustomCategory,
     saveMapping,
+    saveError,
   };
 }

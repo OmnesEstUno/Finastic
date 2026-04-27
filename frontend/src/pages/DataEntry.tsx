@@ -95,6 +95,10 @@ export default function DataEntry({ onRequestClose, onPendingChange }: DataEntry
   // ─── Active workspace ─────────────────────────────────────────────────────
   const { activeInstanceId } = useWorkspaces();
 
+  // Surfaced when duplicate detection data can't be fetched — warns the user
+  // that the dedup pre-check is unavailable (server still enforces it).
+  const [dedupUnavailable, setDedupUnavailable] = useState(false);
+
   // ─── Existing data for duplicate detection ──────────────────────────────
   // Loaded on mount (and whenever the active workspace changes) so CSV rows
   // can be marked as potential duplicates before the user even clicks Import.
@@ -107,8 +111,14 @@ export default function DataEntry({ onRequestClose, onPendingChange }: DataEntry
   useEffect(() => {
     if (!activeInstanceId) return;
     Promise.all([getTransactions(), getIncome()])
-      .then(([txns, inc]) => setExistingDedupLookup(buildExistingDedupLookup(txns, inc)))
-      .catch(() => {});
+      .then(([txns, inc]) => {
+        setExistingDedupLookup(buildExistingDedupLookup(txns, inc));
+        setDedupUnavailable(false);
+      })
+      .catch((err) => {
+        console.error('Failed to load existing data for duplicate detection', err);
+        setDedupUnavailable(true);
+      });
   }, [activeInstanceId]);
 
   // ─── Pending change tracking ──────────────────────────────────────────────
@@ -573,6 +583,15 @@ export default function DataEntry({ onRequestClose, onPendingChange }: DataEntry
                 <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
               </svg>
               {submitError}
+            </div>
+          )}
+          {dedupUnavailable && (
+            <div className="alert alert-warning alert-mb">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+              Duplicate detection unavailable — existing data could not be fetched. New rows may overlap with existing ones.
             </div>
           )}
           {parseErrors.length > 0 && (
