@@ -151,7 +151,8 @@ a:hover { color: var(--accent-hover); }
 }
 
 .nav-link {
-  padding: 6px 14px;
+  padding: var(--space-2) var(--space-3);
+  min-height: var(--touch-target-min);
   border-radius: var(--radius-md);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
@@ -161,7 +162,7 @@ a:hover { color: var(--accent-hover); }
   border: none;
   background: none;
   text-decoration: none;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: var(--space-2);
 }
@@ -210,6 +211,7 @@ a:hover { color: var(--accent-hover); }
   justify-content: center;
   gap: var(--space-2);
   padding: var(--space-2) var(--space-4);
+  min-height: var(--touch-target-min);
   border-radius: var(--radius-md);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
@@ -248,7 +250,7 @@ a:hover { color: var(--accent-hover); }
 }
 .btn-danger:hover:not(:disabled) { background: rgba(248, 113, 113, 0.2); }
 
-.btn-sm { padding: 5px 10px; font-size: 0.8125rem; }
+.btn-sm { padding: var(--space-2) var(--space-3); min-height: var(--touch-target-compact); font-size: 0.8125rem; }
 .btn-lg { padding: 11px 22px; font-size: 0.9375rem; }
 
 /* ─── Input / Select ─────────────────────────────────────────────────────── */
@@ -356,7 +358,8 @@ a:hover { color: var(--accent-hover); }
 }
 
 .tab {
-  padding: 6px 14px;
+  padding: var(--space-2) var(--space-3);
+  min-height: var(--touch-target-min);
   border-radius: 6px;
   font-size: 0.8125rem;
   font-weight: var(--font-weight-medium);
@@ -365,6 +368,8 @@ a:hover { color: var(--accent-hover); }
   background: transparent;
   color: var(--text-secondary);
   transition: all 0.15s;
+  display: inline-flex;
+  align-items: center;
 }
 .tab.active { background: var(--bg-card); color: var(--text-primary); }
 .tab:hover:not(.active) { color: var(--text-primary); }
@@ -671,8 +676,8 @@ a:hover { color: var(--accent-hover); }
   right: 14px;
   background: transparent;
   border: none;
-  width: 32px;
-  height: 32px;
+  width: var(--touch-target-min);
+  height: var(--touch-target-min);
   border-radius: 6px;
   color: var(--text-muted);
   cursor: pointer;
@@ -906,8 +911,9 @@ a:hover { color: var(--accent-hover); }
   justify-content: center;
   width: 32px;
   height: 32px;
-  min-width: 32px;
-  padding: 0;
+  min-width: var(--touch-target-min);
+  min-height: var(--touch-target-min);
+  padding: var(--space-1);
   background: transparent;
   border: none;
   color: var(--text-muted);
@@ -1037,6 +1043,7 @@ a:hover { color: var(--accent-hover); }
   position: relative;
   width: 40px;
   height: 22px;
+  min-height: var(--touch-target-min);
   border: none;
   border-radius: 999px;
   background: var(--bg-elevated);
