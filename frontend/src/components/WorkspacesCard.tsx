@@ -13,6 +13,7 @@ import {
   ConflictError,
 } from '../api/client';
 import { UNIX_MS_MULTIPLIER } from '../utils/constants';
+import { dialog } from '../utils/dialog';
 
 function WorkspaceInvitesPanel({ instanceId }: { instanceId: string }) {
   const [invites, setInvites] = useState<WorkspaceInviteSummary[]>([]);
@@ -48,7 +49,7 @@ function WorkspaceInvitesPanel({ instanceId }: { instanceId: string }) {
   }
 
   async function handleRevoke(inviteId: string) {
-    if (!confirm('Revoke this invite link?')) return;
+    if (!await dialog.confirm('Revoke this invite link?')) return;
     try {
       await deleteWorkspaceInvite(instanceId, inviteId);
       if (newInviteId === inviteId) { setNewLink(null); setNewInviteId(null); }
@@ -121,7 +122,7 @@ export default function WorkspacesCard() {
   const [busy, setBusy] = useState(false);
 
   async function handleCreate() {
-    const name = prompt('Workspace name:');
+    const name = await dialog.prompt('Workspace name:');
     if (!name?.trim()) return;
     setBusy(true);
     setError('');
@@ -136,7 +137,7 @@ export default function WorkspacesCard() {
   }
 
   async function handleRename(id: string, current: string) {
-    const next = prompt('New name:', current);
+    const next = await dialog.prompt('New name:', current);
     if (!next?.trim() || next.trim() === current) return;
     setBusy(true);
     setError('');
@@ -156,7 +157,7 @@ export default function WorkspacesCard() {
   }
 
   async function handleDelete(id: string, name: string) {
-    if (!confirm(`Delete workspace "${name}" and all its data? This cannot be undone.`)) return;
+    if (!await dialog.confirm(`Delete workspace "${name}" and all its data? This cannot be undone.`)) return;
     setBusy(true);
     setError('');
     try {
@@ -171,7 +172,7 @@ export default function WorkspacesCard() {
 
   async function handleLeave(id: string, name: string) {
     if (!currentUser) return;
-    if (!confirm(`Leave workspace "${name}"?`)) return;
+    if (!await dialog.confirm(`Leave workspace "${name}"?`)) return;
     setBusy(true);
     setError('');
     try {
@@ -190,7 +191,7 @@ export default function WorkspacesCard() {
   }
 
   async function handleRemoveMember(id: string, memberUsername: string) {
-    if (!confirm(`Remove ${memberUsername} from this workspace?`)) return;
+    if (!await dialog.confirm(`Remove ${memberUsername} from this workspace?`)) return;
     setBusy(true);
     setError('');
     try {

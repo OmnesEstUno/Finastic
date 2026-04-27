@@ -59,6 +59,7 @@ import { useDashboardLayout, CardId } from '../hooks/useDashboardLayout';
 import Layout from '../components/layout/Layout';
 import { useDataEntry } from '../contexts/DataEntryContext';
 import { TOUCH_SENSOR_DELAY_MS, TOUCH_SENSOR_TOLERANCE_PX, YEAR_LOOKBACK } from '../utils/constants';
+import { dialog } from '../utils/dialog';
 
 // Undo-toast payload: what was just deleted, so we can restore it if the
 // user clicks Undo before the timeout fires.
@@ -186,7 +187,7 @@ export default function Dashboard() {
           await refetchAll();
           setConflictMessage('Data was changed by another tab — please retry your action.');
         } else {
-          window.alert(`Delete failed: ${(err as Error).message}`);
+          dialog.alert(`Delete failed: ${(err as Error).message}`);
         }
       }
     },
@@ -231,7 +232,7 @@ export default function Dashboard() {
         await refetchAll();
         setConflictMessage('Data was changed by another tab — please retry the undo.');
       } else {
-        window.alert(`Undo failed: ${(err as Error).message}`);
+        dialog.alert(`Undo failed: ${(err as Error).message}`);
       }
     } finally {
       setPendingUndo(null);
@@ -268,7 +269,7 @@ export default function Dashboard() {
           );
           if (
             matches.length > 0 &&
-            window.confirm(
+            await dialog.confirm(
               `Apply "${updates.category}" to ${matches.length} other transaction${matches.length !== 1 ? 's' : ''} matching "${pattern}"?`,
             )
           ) {
@@ -281,7 +282,7 @@ export default function Dashboard() {
           await refetchAll();
           setConflictMessage('Data was changed by another tab — please retry your update.');
         } else {
-          window.alert(`Update failed: ${(err as Error).message}`);
+          dialog.alert(`Update failed: ${(err as Error).message}`);
         }
       }
     },
@@ -298,7 +299,7 @@ export default function Dashboard() {
           await refetchAll();
           setConflictMessage('Data was changed by another tab — please retry your update.');
         } else {
-          window.alert(`Update failed: ${(err as Error).message}`);
+          dialog.alert(`Update failed: ${(err as Error).message}`);
         }
       }
     },

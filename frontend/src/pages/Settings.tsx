@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getTransactions, getIncome, getUserCategories, renameCategory, deleteCategory, ConflictError } from '../api/client';
+import { dialog } from '../utils/dialog';
 import { IncomeEntry, Transaction } from '../types';
 import { useUserCategories } from '../hooks/useUserCategories';
 import { getCategoryColor } from '../utils/categories';
@@ -146,7 +147,7 @@ export default function Settings() {
   }
 
   async function handleRename(from: string) {
-    const newName = window.prompt(`Rename "${from}" to:`, from)?.trim();
+    const newName = (await dialog.prompt(`Rename "${from}" to:`, from))?.trim();
     if (!newName || newName === from) return;
     setBusy(true);
     setStatus(null);
@@ -182,7 +183,7 @@ export default function Settings() {
 
   async function handleDelete(name: string) {
     if (!isActiveOwner) {
-      window.alert("You can't delete data from a workspace that you don't own. Only the workspace owner can delete data.");
+      await dialog.alert("You can't delete data from a workspace that you don't own. Only the workspace owner can delete data.");
       return;
     }
     const count = categoryCounts.get(name) ?? 0;
@@ -190,7 +191,7 @@ export default function Settings() {
       count > 0
         ? `Delete "${name}"? ${count} transaction${count !== 1 ? 's' : ''} will be reassigned to "Other".`
         : `Delete "${name}"? This category has no transactions.`;
-    if (!window.confirm(msg)) return;
+    if (!await dialog.confirm(msg)) return;
     setBusy(true);
     setStatus(null);
     try {
@@ -218,8 +219,8 @@ export default function Settings() {
     }
   }
 
-  function handleDeleteMapping(pattern: string) {
-    if (!window.confirm(`Delete the mapping for "${pattern}"?`)) return;
+  async function handleDeleteMapping(pattern: string) {
+    if (!await dialog.confirm(`Delete the mapping for "${pattern}"?`)) return;
     setUserCategories((prev) => ({
       ...prev,
       mappings: prev.mappings.filter((m) => m.pattern !== pattern),
@@ -227,11 +228,11 @@ export default function Settings() {
     setStatus({ kind: 'success', text: `Mapping for "${pattern}" removed.` });
   }
 
-  function handleEditMapping(pattern: string, currentCategory: string) {
-    const newCategory = window.prompt(
+  async function handleEditMapping(pattern: string, currentCategory: string) {
+    const newCategory = (await dialog.prompt(
       `Change the category for pattern "${pattern}" to:`,
       currentCategory,
-    )?.trim();
+    ))?.trim();
     if (!newCategory || newCategory === currentCategory) return;
     setUserCategories((prev) => ({
       ...prev,

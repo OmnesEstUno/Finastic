@@ -23,6 +23,7 @@ import { useUserCategories } from '../hooks/useUserCategories';
 import { useWorkspaces } from '../hooks/useWorkspaces';
 import CategorySelect, { NEW_CATEGORY_SENTINEL } from '../components/CategorySelect';
 import DuplicateStatusCell, { DuplicateStatus } from '../components/data-entry/DuplicateStatusCell';
+import { dialog } from '../utils/dialog';
 
 interface DataEntryProps {
   onRequestClose: () => void;
@@ -148,12 +149,12 @@ export default function DataEntry({ onRequestClose, onPendingChange }: DataEntry
     onPendingChange,
   ]);
 
-  function handlePreviewCategoryChange(rowIdx: number, pickedValue: string) {
+  async function handlePreviewCategoryChange(rowIdx: number, pickedValue: string) {
     let categoryName: string | null = pickedValue;
     let isCustom = userCategories.customCategories.includes(pickedValue);
 
     if (pickedValue === NEW_CATEGORY_SENTINEL) {
-      const input = window.prompt('Name for the new category:');
+      const input = await dialog.prompt('Name for the new category:');
       if (!input) return;
       categoryName = addCustomCategory(input);
       if (!categoryName) return;
@@ -169,9 +170,9 @@ export default function DataEntry({ onRequestClose, onPendingChange }: DataEntry
     }
   }
 
-  function handleManualCategoryChange(pickedValue: string) {
+  async function handleManualCategoryChange(pickedValue: string) {
     if (pickedValue === NEW_CATEGORY_SENTINEL) {
-      const input = window.prompt('Name for the new category:');
+      const input = await dialog.prompt('Name for the new category:');
       if (!input) return;
       const name = addCustomCategory(input);
       if (!name) return;

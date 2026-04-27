@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 import { createInvite, listInvites, deleteInvite, InviteSummary } from '../api/client';
 import { UNIX_MS_MULTIPLIER } from '../utils/constants';
+import { dialog } from '../utils/dialog';
 
 // Pre-compute QR data URLs for all active invites (eager, ~fast).
 async function buildQrMap(invites: InviteSummary[]): Promise<Map<string, string>> {
@@ -66,7 +67,7 @@ export default function InviteTokensCard() {
   }
 
   async function handleRevoke(id: string) {
-    if (!confirm('Revoke this invite?')) return;
+    if (!await dialog.confirm('Revoke this invite?')) return;
     try {
       await deleteInvite(id);
       if (expandedId === id) setExpandedId(null);

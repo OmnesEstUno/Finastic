@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Transaction, IncomeEntry, UserCategories } from '../types';
 import { purgeAllData } from '../api/client';
+import { dialog } from '../utils/dialog';
 
 interface DangerZoneProps {
   transactions: Transaction[];
@@ -25,7 +26,7 @@ export default function DangerZone({ transactions, income, userCategories, onPur
 
   async function handlePurge() {
     if (!isActiveOwner) {
-      window.alert("You can't delete data from a workspace that you don't own. Only the workspace owner can delete data.");
+      await dialog.alert("You can't delete data from a workspace that you don't own. Only the workspace owner can delete data.");
       return;
     }
     setWorking(true);
