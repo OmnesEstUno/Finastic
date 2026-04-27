@@ -193,7 +193,23 @@ Note: The error message strings `'Username must be 3–32 characters...'` were N
 (Populated in Phases 7–9.)
 
 ### Inline Styles
-(Populated in Phase 10.)
+
+**Phase 8 — moved static inline styles to CSS classes; kept dynamic ones inline.**
+
+| Task | File | Sites extracted | Sites kept inline (dynamic) |
+|---|---|---|---|
+| 8.1 | `frontend/src/components/layout/Layout.tsx` | 3: `.navbar-user`, `.main-content-wrapper`, `.main-content-inner` | none |
+| 8.2 | `frontend/src/components/dashboard/DashboardCard.tsx` | 6: `.dashboard-card-header-left`, `.dashboard-card-handle`, `.dashboard-card-drag-icon`, `.dashboard-card-title`, `.dashboard-card-actions`, `.dashboard-card-minimize-btn` + `.dashboard-card-minimize-icon` | 3: drag transform/opacity/zIndex from useSortable, `marginBottom` conditional on `minimized` prop, drag-handle `cursor` toggle |
+| 8.3 | `frontend/src/pages/DataEntry.tsx` | ~29 new CSS classes covering form headers, card margins, alert layouts, drop zone decorations, hidden file inputs, preview toolbar, duplicate banner, table cell widths, manual/income forms | 4: row background driven by `duplicateStatus`, chip colors driven by `isIncome` flag, two header-with-prose sites |
+
+**Tokens used where they fit; literals kept where the design didn't match a token slot:**
+- `0.95rem` (navbar user-name font-size) — no matching token; kept literal
+- `1.375rem` (DashboardCard minimize icon at 22px) — no matching token; kept literal
+
+**Components NOT touched** because their inline styles are entirely dynamic (props/state-driven):
+- `frontend/src/components/CheckmarkToggle.tsx` (active/themeColor/size driven)
+- `frontend/src/components/Modal.tsx` (body scroll lock toggle)
+- `frontend/src/components/Toast.tsx` (progress bar width interpolated each tick)
 
 ### Resource Leaks
 (Populated in Phase 11.)
