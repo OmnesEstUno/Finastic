@@ -115,7 +115,7 @@ a:hover { color: var(--accent-hover); }
   align-items: center;
   position: sticky;
   top: 0;
-  z-index: 100;
+  z-index: var(--z-sticky);
 }
 
 .navbar .container {
@@ -626,7 +626,7 @@ a:hover { color: var(--accent-hover); }
   background: rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  z-index: 200;
+  z-index: var(--z-modal-backdrop);
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -941,7 +941,7 @@ a:hover { color: var(--accent-hover); }
   font-size: 0.75rem;
   text-align: center;
   line-height: 1.1;
-  z-index: 100;
+  z-index: var(--z-sticky);
   transition: transform 0.12s ease, box-shadow 0.12s ease;
 }
 .fab-enter-data:hover {
