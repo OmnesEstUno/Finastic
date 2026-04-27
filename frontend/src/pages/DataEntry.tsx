@@ -46,6 +46,11 @@ interface PreviewRow {
 }
 
 export default function DataEntry({ onRequestClose, onPendingChange }: DataEntryProps) {
+  // Unmount guard — prevents setTimeout callbacks from firing against an
+  // unmounted component if the modal is closed before the flash completes.
+  const isMountedRef = useRef(true);
+  useEffect(() => () => { isMountedRef.current = false; }, []);
+
   // Upload state
   const [dragOver, setDragOver] = useState(false);
   const [parseErrors, setParseErrors] = useState<string[]>([]);
@@ -339,6 +344,7 @@ export default function DataEntry({ onRequestClose, onPendingChange }: DataEntry
       setSkippedCount(0);
       // Brief pause so the success message is visible, then close the modal
       setTimeout(() => {
+        if (!isMountedRef.current) return;
         onPendingChange(false);
         onRequestClose();
       }, SUCCESS_FLASH_DURATION_MS);
@@ -377,6 +383,7 @@ export default function DataEntry({ onRequestClose, onPendingChange }: DataEntry
       setManualCategory('Other');
       setManualDuplicatePending(null);
       setTimeout(() => {
+        if (!isMountedRef.current) return;
         onPendingChange(false);
         onRequestClose();
       }, SUCCESS_FLASH_DURATION_MS);
@@ -480,6 +487,7 @@ export default function DataEntry({ onRequestClose, onPendingChange }: DataEntry
       setIncomeFile(null); setIncomeLowConfidence(false);
       setIncomeDuplicatePending(null);
       setTimeout(() => {
+        if (!isMountedRef.current) return;
         onPendingChange(false);
         onRequestClose();
       }, SUCCESS_FLASH_DURATION_MS);
