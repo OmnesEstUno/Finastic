@@ -10,8 +10,8 @@ import {
   listWorkspaceInvites,
   deleteWorkspaceInvite,
   WorkspaceInviteSummary,
-  ConflictError,
 } from '../api/client';
+import { runMutation } from '../utils/mutation';
 import { UNIX_MS_MULTIPLIER } from '../utils/constants';
 import { dialog } from '../utils/dialog';
 
@@ -139,21 +139,15 @@ export default function WorkspacesCard() {
   async function handleRename(id: string, current: string) {
     const next = await dialog.prompt('New name:', current);
     if (!next?.trim() || next.trim() === current) return;
-    setBusy(true);
-    setError('');
-    try {
-      await renameInstance(id, next.trim());
-      await refresh();
-    } catch (err) {
-      if (err instanceof ConflictError) {
-        setError('This workspace was modified by another session. The page has been refreshed — please try again.');
-        await refresh();
-      } else {
-        setError((err as Error).message);
-      }
-    } finally {
-      setBusy(false);
-    }
+    await runMutation({
+      onStart: () => { setBusy(true); setError(''); },
+      call: () => renameInstance(id, next.trim()),
+      onSuccess: () => refresh(),
+      onConflict: async (msg) => { setError(msg); await refresh(); },
+      onError: (msg) => setError(msg),
+      onFinally: () => setBusy(false),
+      conflictMessage: 'This workspace was modified by another session. The page has been refreshed — please try again.',
+    });
   }
 
   async function handleDelete(id: string, name: string) {
@@ -173,40 +167,28 @@ export default function WorkspacesCard() {
   async function handleLeave(id: string, name: string) {
     if (!currentUser) return;
     if (!await dialog.confirm(`Leave workspace "${name}"?`)) return;
-    setBusy(true);
-    setError('');
-    try {
-      await removeInstanceMember(id, currentUser);
-      await refresh();
-    } catch (err) {
-      if (err instanceof ConflictError) {
-        setError('This workspace was modified by another session. The page has been refreshed — please try again.');
-        await refresh();
-      } else {
-        setError((err as Error).message);
-      }
-    } finally {
-      setBusy(false);
-    }
+    await runMutation({
+      onStart: () => { setBusy(true); setError(''); },
+      call: () => removeInstanceMember(id, currentUser),
+      onSuccess: () => refresh(),
+      onConflict: async (msg) => { setError(msg); await refresh(); },
+      onError: (msg) => setError(msg),
+      onFinally: () => setBusy(false),
+      conflictMessage: 'This workspace was modified by another session. The page has been refreshed — please try again.',
+    });
   }
 
   async function handleRemoveMember(id: string, memberUsername: string) {
     if (!await dialog.confirm(`Remove ${memberUsername} from this workspace?`)) return;
-    setBusy(true);
-    setError('');
-    try {
-      await removeInstanceMember(id, memberUsername);
-      await refresh();
-    } catch (err) {
-      if (err instanceof ConflictError) {
-        setError('This workspace was modified by another session. The page has been refreshed — please try again.');
-        await refresh();
-      } else {
-        setError((err as Error).message);
-      }
-    } finally {
-      setBusy(false);
-    }
+    await runMutation({
+      onStart: () => { setBusy(true); setError(''); },
+      call: () => removeInstanceMember(id, memberUsername),
+      onSuccess: () => refresh(),
+      onConflict: async (msg) => { setError(msg); await refresh(); },
+      onError: (msg) => setError(msg),
+      onFinally: () => setBusy(false),
+      conflictMessage: 'This workspace was modified by another session. The page has been refreshed — please try again.',
+    });
   }
 
   return (

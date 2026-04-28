@@ -8,9 +8,9 @@ import {
   addIncome,
   getTransactions,
   getIncome,
-  ConflictError,
   AddTransactionInput,
 } from '../api/client';
+import { runMutation } from '../utils/mutation';
 import { formatCurrency } from '../utils/dataProcessing';
 import {
   buildExistingDedupLookup,
@@ -285,91 +285,93 @@ export default function DataEntry({ onRequestClose, onPendingChange }: DataEntry
       );
       return;
     }
-    setSubmitting(true);
-    setSubmitError(null);
-    try {
-      // Denied rows are dropped entirely
-      const toSubmit = previewRows.filter((r) => r.duplicateStatus !== 'denied');
-      const expenseRows = toSubmit.filter((r) => r.row.kind === 'expense');
-      const incomeRows = toSubmit.filter((r) => r.row.kind === 'income');
+    await runMutation({
+      onStart: () => { setSubmitting(true); setSubmitError(null); },
+      call: async () => {
+        // Denied rows are dropped entirely
+        const toSubmit = previewRows.filter((r) => r.duplicateStatus !== 'denied');
+        const expenseRows = toSubmit.filter((r) => r.row.kind === 'expense');
+        const incomeRows = toSubmit.filter((r) => r.row.kind === 'income');
 
-      let addedTxns = 0;
-      let skippedTxns = 0;
-      if (expenseRows.length > 0) {
-        const txns: AddTransactionInput[] = expenseRows.map((r) => {
-          const row = r.row as Extract<ParsedCSVRow, { kind: 'expense' }>;
-          return {
+        let addedTxns = 0;
+        let skippedTxns = 0;
+        if (expenseRows.length > 0) {
+          const txns: AddTransactionInput[] = expenseRows.map((r) => {
+            const row = r.row as Extract<ParsedCSVRow, { kind: 'expense' }>;
+            return {
+              date: row.date,
+              description: row.description,
+              notes: '',
+              category: row.category,
+              amount: row.amount,
+              type: row.type,
+              source: 'csv' as const,
+              // Approved duplicates bypass the server's dedup check
+              allowDuplicate: r.duplicateStatus === 'approved',
+            };
+          });
+          const result = await addTransactions(txns);
+          addedTxns = result.added;
+          skippedTxns = result.skipped;
+        }
+
+        let addedIncome = 0;
+        let skippedIncome = 0;
+        for (const r of incomeRows) {
+          const row = r.row as Extract<ParsedCSVRow, { kind: 'income' }>;
+          const result = await addIncome({
             date: row.date,
             description: row.description,
-            notes: '',
-            category: row.category,
-            amount: row.amount,
-            type: row.type,
-            source: 'csv' as const,
+            grossAmount: row.amount,
+            netAmount: row.amount,
+            taxes: { federal: 0, state: 0, socialSecurity: 0, medicare: 0, other: 0 },
+            source: 'manual',
             // Approved duplicates bypass the server's dedup check
             allowDuplicate: r.duplicateStatus === 'approved',
-          };
-        });
-        const result = await addTransactions(txns);
-        addedTxns = result.added;
-        skippedTxns = result.skipped;
-      }
+          });
+          if (result.skipped) skippedIncome++;
+          else addedIncome++;
+        }
 
-      let addedIncome = 0;
-      let skippedIncome = 0;
-      for (const r of incomeRows) {
-        const row = r.row as Extract<ParsedCSVRow, { kind: 'income' }>;
-        const result = await addIncome({
-          date: row.date,
-          description: row.description,
-          grossAmount: row.amount,
-          netAmount: row.amount,
-          taxes: { federal: 0, state: 0, socialSecurity: 0, medicare: 0, other: 0 },
-          source: 'manual',
-          // Approved duplicates bypass the server's dedup check
-          allowDuplicate: r.duplicateStatus === 'approved',
-        });
-        if (result.skipped) skippedIncome++;
-        else addedIncome++;
-      }
+        return { addedTxns, skippedTxns, addedIncome, skippedIncome };
+      },
+      onSuccess: ({ addedTxns, skippedTxns, addedIncome, skippedIncome }) => {
+        // Build a concise result summary
+        const importedParts: string[] = [];
+        if (addedTxns > 0) importedParts.push(`${addedTxns} expense${addedTxns !== 1 ? 's' : ''}`);
+        if (addedIncome > 0) importedParts.push(`${addedIncome} income entr${addedIncome !== 1 ? 'ies' : 'y'}`);
 
-      // Build a concise result summary
-      const importedParts: string[] = [];
-      if (addedTxns > 0) importedParts.push(`${addedTxns} expense${addedTxns !== 1 ? 's' : ''}`);
-      if (addedIncome > 0) importedParts.push(`${addedIncome} income entr${addedIncome !== 1 ? 'ies' : 'y'}`);
-
-      const skippedTotal = skippedTxns + skippedIncome;
-      let message: string;
-      if (importedParts.length === 0 && skippedTotal > 0) {
-        message = `No new records imported — all ${skippedTotal} ${skippedTotal !== 1 ? 'entries were' : 'entry was'} already in your data.`;
-      } else if (importedParts.length > 0 && skippedTotal > 0) {
-        message = `Imported ${importedParts.join(' and ')}. ${skippedTotal} duplicate${skippedTotal !== 1 ? 's' : ''} skipped.`;
-      } else if (importedParts.length > 0) {
-        message = `Successfully imported ${importedParts.join(' and ')}.`;
-      } else {
-        message = 'Nothing was imported.';
-      }
-      setSubmitSuccess(message);
-      setPreviewRows([]);
-      setParseErrors([]);
-      setSkippedCount(0);
-      // Brief pause so the success message is visible, then close the modal
-      setTimeout(() => {
-        if (!isMountedRef.current) return;
-        onPendingChange(false);
-        onRequestClose();
-      }, SUCCESS_FLASH_DURATION_MS);
-    } catch (err) {
-      if (err instanceof ConflictError) {
+        const skippedTotal = skippedTxns + skippedIncome;
+        let message: string;
+        if (importedParts.length === 0 && skippedTotal > 0) {
+          message = `No new records imported — all ${skippedTotal} ${skippedTotal !== 1 ? 'entries were' : 'entry was'} already in your data.`;
+        } else if (importedParts.length > 0 && skippedTotal > 0) {
+          message = `Imported ${importedParts.join(' and ')}. ${skippedTotal} duplicate${skippedTotal !== 1 ? 's' : ''} skipped.`;
+        } else if (importedParts.length > 0) {
+          message = `Successfully imported ${importedParts.join(' and ')}.`;
+        } else {
+          message = 'Nothing was imported.';
+        }
+        setSubmitSuccess(message);
+        setPreviewRows([]);
+        setParseErrors([]);
+        setSkippedCount(0);
+        // Brief pause so the success message is visible, then close the modal
+        setTimeout(() => {
+          if (!isMountedRef.current) return;
+          onPendingChange(false);
+          onRequestClose();
+        }, SUCCESS_FLASH_DURATION_MS);
+      },
+      onConflict: async (msg) => {
         // Refresh versions, then surface a user-actionable message
         await Promise.all([getTransactions(), getIncome()]);
-        setSubmitError('Data was changed by another tab while importing. Please retry the import.');
-      } else {
-        setSubmitError((err as Error).message);
-      }
-    } finally {
-      setSubmitting(false);
-    }
+        setSubmitError(msg);
+      },
+      onError: (msg) => setSubmitError(msg),
+      onFinally: () => setSubmitting(false),
+      conflictMessage: 'Data was changed by another tab while importing. Please retry the import.',
+    });
   }
 
   // ─── Manual Expense ──────────────────────────────────────────────────────
@@ -379,35 +381,32 @@ export default function DataEntry({ onRequestClose, onPendingChange }: DataEntry
   const [manualDuplicatePending, setManualDuplicatePending] = useState<AddTransactionInput | null>(null);
 
   async function submitManualExpense(payload: AddTransactionInput) {
-    setSubmitting(true);
-    try {
-      const { added, skipped } = await addTransactions([payload]);
-      if (added === 0 && skipped > 0) {
-        setManualError('A transaction with this date, description, and amount already exists.');
-        setManualDuplicatePending(payload);
-        return;
-      }
-      setManualSuccess(`Added "${payload.description}" for ${formatCurrency(Math.abs(payload.amount))}.`);
-      setManualDate('');
-      setManualDesc('');
-      setManualAmount('');
-      setManualCategory('Other');
-      setManualDuplicatePending(null);
-      setTimeout(() => {
-        if (!isMountedRef.current) return;
-        onPendingChange(false);
-        onRequestClose();
-      }, SUCCESS_FLASH_DURATION_MS);
-    } catch (err) {
-      if (err instanceof ConflictError) {
-        await getTransactions();
-        setManualError('Data was changed by another tab — please retry.');
-      } else {
-        setManualError((err as Error).message);
-      }
-    } finally {
-      setSubmitting(false);
-    }
+    await runMutation({
+      onStart: () => setSubmitting(true),
+      call: () => addTransactions([payload]),
+      onSuccess: ({ added, skipped }) => {
+        if (added === 0 && skipped > 0) {
+          setManualError('A transaction with this date, description, and amount already exists.');
+          setManualDuplicatePending(payload);
+          return;
+        }
+        setManualSuccess(`Added "${payload.description}" for ${formatCurrency(Math.abs(payload.amount))}.`);
+        setManualDate('');
+        setManualDesc('');
+        setManualAmount('');
+        setManualCategory('Other');
+        setManualDuplicatePending(null);
+        setTimeout(() => {
+          if (!isMountedRef.current) return;
+          onPendingChange(false);
+          onRequestClose();
+        }, SUCCESS_FLASH_DURATION_MS);
+      },
+      onConflict: async (msg) => { await getTransactions(); setManualError(msg); },
+      onError: (msg) => setManualError(msg),
+      onFinally: () => setSubmitting(false),
+      conflictMessage: 'Data was changed by another tab — please retry.',
+    });
   }
 
   async function handleManualExpense(e: FormEvent) {
@@ -480,38 +479,35 @@ export default function DataEntry({ onRequestClose, onPendingChange }: DataEntry
   const [incomeDuplicatePending, setIncomeDuplicatePending] = useState<Omit<IncomeEntry, 'id'> | null>(null);
 
   async function submitManualIncome(entry: Omit<IncomeEntry, 'id'>, allowDuplicate = false) {
-    setSubmitting(true);
-    try {
-      const result = await addIncome({ ...entry, allowDuplicate });
-      if (result.skipped) {
-        setIncomeError('An income entry with this date, description, and amount already exists.');
-        setIncomeDuplicatePending(entry);
-        return;
-      }
-      const totalTax = Object.values(entry.taxes).reduce((s, v) => s + v, 0);
-      setIncomeSuccess(
-        `Income of ${formatCurrency(entry.grossAmount)} recorded.` +
-          (totalTax > 0 ? ` ${formatCurrency(totalTax)} in taxes has been added to your expense tracking.` : ''),
-      );
-      setIncDesc(''); setIncDate(''); setIncGross(''); setIncNet('');
-      setIncFederal(''); setIncState(''); setIncSS(''); setIncMedicare(''); setIncOther('');
-      setIncomeFile(null); setIncomeLowConfidence(false);
-      setIncomeDuplicatePending(null);
-      setTimeout(() => {
-        if (!isMountedRef.current) return;
-        onPendingChange(false);
-        onRequestClose();
-      }, SUCCESS_FLASH_DURATION_MS);
-    } catch (err) {
-      if (err instanceof ConflictError) {
-        await getIncome();
-        setIncomeError('Data was changed by another tab — please retry.');
-      } else {
-        setIncomeError((err as Error).message);
-      }
-    } finally {
-      setSubmitting(false);
-    }
+    await runMutation({
+      onStart: () => setSubmitting(true),
+      call: () => addIncome({ ...entry, allowDuplicate }),
+      onSuccess: (result) => {
+        if (result.skipped) {
+          setIncomeError('An income entry with this date, description, and amount already exists.');
+          setIncomeDuplicatePending(entry);
+          return;
+        }
+        const totalTax = Object.values(entry.taxes).reduce((s, v) => s + v, 0);
+        setIncomeSuccess(
+          `Income of ${formatCurrency(entry.grossAmount)} recorded.` +
+            (totalTax > 0 ? ` ${formatCurrency(totalTax)} in taxes has been added to your expense tracking.` : ''),
+        );
+        setIncDesc(''); setIncDate(''); setIncGross(''); setIncNet('');
+        setIncFederal(''); setIncState(''); setIncSS(''); setIncMedicare(''); setIncOther('');
+        setIncomeFile(null); setIncomeLowConfidence(false);
+        setIncomeDuplicatePending(null);
+        setTimeout(() => {
+          if (!isMountedRef.current) return;
+          onPendingChange(false);
+          onRequestClose();
+        }, SUCCESS_FLASH_DURATION_MS);
+      },
+      onConflict: async (msg) => { await getIncome(); setIncomeError(msg); },
+      onError: (msg) => setIncomeError(msg),
+      onFinally: () => setSubmitting(false),
+      conflictMessage: 'Data was changed by another tab — please retry.',
+    });
   }
 
   async function handleIncomeSubmit(e: FormEvent) {

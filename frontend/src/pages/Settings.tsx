@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { getTransactions, getIncome, getUserCategories, renameCategory, deleteCategory, ConflictError } from '../api/client';
+import { getTransactions, getIncome, getUserCategories, renameCategory, deleteCategory } from '../api/client';
+import { runMutation } from '../utils/mutation';
 import { dialog } from '../utils/dialog';
 import { IncomeEntry, Transaction } from '../types';
 import { useUserCategories } from '../hooks/useUserCategories';
@@ -149,36 +150,35 @@ export default function Settings() {
   async function handleRename(from: string) {
     const newName = (await dialog.prompt(`Rename "${from}" to:`, from))?.trim();
     if (!newName || newName === from) return;
-    setBusy(true);
-    setStatus(null);
-    try {
-      const result = await renameCategory(from, newName);
-      // Update local state AFTER the API call succeeds to avoid racing the
-      // useUserCategories auto-save hook with the explicit mutation.
-      setUserCategories((prev) => {
-        const nextCustom = prev.customCategories.map((c) => (c === from ? newName : c));
-        // De-dup case where `newName` already exists
-        const unique = [...new Set(nextCustom)];
-        return {
-          customCategories: unique,
-          mappings: prev.mappings.map((m) => (m.category === from ? { ...m, category: newName } : m)),
-        };
-      });
-      await Promise.all([refreshTransactions(), getUserCategories()]).catch(() => undefined);
-      setStatus({
-        kind: 'success',
-        text: `Renamed "${from}" → "${newName}" (updated ${result.updated} transaction${result.updated !== 1 ? 's' : ''} and ${result.mappingsUpdated} mapping${result.mappingsUpdated !== 1 ? 's' : ''}).`,
-      });
-    } catch (err) {
-      if (err instanceof ConflictError) {
+    await runMutation({
+      onStart: () => { setBusy(true); setStatus(null); },
+      call: () => renameCategory(from, newName),
+      onSuccess: async (result) => {
+        // Update local state AFTER the API call succeeds to avoid racing the
+        // useUserCategories auto-save hook with the explicit mutation.
+        setUserCategories((prev) => {
+          const nextCustom = prev.customCategories.map((c) => (c === from ? newName : c));
+          // De-dup case where `newName` already exists
+          const unique = [...new Set(nextCustom)];
+          return {
+            customCategories: unique,
+            mappings: prev.mappings.map((m) => (m.category === from ? { ...m, category: newName } : m)),
+          };
+        });
         await Promise.all([refreshTransactions(), getUserCategories()]).catch(() => undefined);
-        setStatus({ kind: 'error', text: 'Data was changed by another tab — please retry the rename.' });
-      } else {
-        setStatus({ kind: 'error', text: (err as Error).message });
-      }
-    } finally {
-      setBusy(false);
-    }
+        setStatus({
+          kind: 'success',
+          text: `Renamed "${from}" → "${newName}" (updated ${result.updated} transaction${result.updated !== 1 ? 's' : ''} and ${result.mappingsUpdated} mapping${result.mappingsUpdated !== 1 ? 's' : ''}).`,
+        });
+      },
+      onConflict: async (msg) => {
+        await Promise.all([refreshTransactions(), getUserCategories()]).catch(() => undefined);
+        setStatus({ kind: 'error', text: msg });
+      },
+      onError: (msg) => setStatus({ kind: 'error', text: msg }),
+      onFinally: () => setBusy(false),
+      conflictMessage: 'Data was changed by another tab — please retry the rename.',
+    });
   }
 
   async function handleDelete(name: string) {
@@ -192,31 +192,30 @@ export default function Settings() {
         ? `Delete "${name}"? ${count} transaction${count !== 1 ? 's' : ''} will be reassigned to "Other".`
         : `Delete "${name}"? This category has no transactions.`;
     if (!await dialog.confirm(msg)) return;
-    setBusy(true);
-    setStatus(null);
-    try {
-      const result = await deleteCategory(name, 'Other');
-      // Update local state AFTER the API call succeeds to avoid racing the
-      // useUserCategories auto-save hook with the explicit mutation.
-      setUserCategories((prev) => ({
-        customCategories: prev.customCategories.filter((c) => c !== name),
-        mappings: prev.mappings.filter((m) => m.category !== name),
-      }));
-      await Promise.all([refreshTransactions(), getUserCategories()]).catch(() => undefined);
-      setStatus({
-        kind: 'success',
-        text: `Deleted "${name}" (reassigned ${result.reassigned} transaction${result.reassigned !== 1 ? 's' : ''}, removed ${result.mappingsRemoved} mapping${result.mappingsRemoved !== 1 ? 's' : ''}).`,
-      });
-    } catch (err) {
-      if (err instanceof ConflictError) {
+    await runMutation({
+      onStart: () => { setBusy(true); setStatus(null); },
+      call: () => deleteCategory(name, 'Other'),
+      onSuccess: async (result) => {
+        // Update local state AFTER the API call succeeds to avoid racing the
+        // useUserCategories auto-save hook with the explicit mutation.
+        setUserCategories((prev) => ({
+          customCategories: prev.customCategories.filter((c) => c !== name),
+          mappings: prev.mappings.filter((m) => m.category !== name),
+        }));
         await Promise.all([refreshTransactions(), getUserCategories()]).catch(() => undefined);
-        setStatus({ kind: 'error', text: 'Data was changed by another tab — please retry the deletion.' });
-      } else {
-        setStatus({ kind: 'error', text: (err as Error).message });
-      }
-    } finally {
-      setBusy(false);
-    }
+        setStatus({
+          kind: 'success',
+          text: `Deleted "${name}" (reassigned ${result.reassigned} transaction${result.reassigned !== 1 ? 's' : ''}, removed ${result.mappingsRemoved} mapping${result.mappingsRemoved !== 1 ? 's' : ''}).`,
+        });
+      },
+      onConflict: async (msg) => {
+        await Promise.all([refreshTransactions(), getUserCategories()]).catch(() => undefined);
+        setStatus({ kind: 'error', text: msg });
+      },
+      onError: (errMsg) => setStatus({ kind: 'error', text: errMsg }),
+      onFinally: () => setBusy(false),
+      conflictMessage: 'Data was changed by another tab — please retry the deletion.',
+    });
   }
 
   async function handleDeleteMapping(pattern: string) {

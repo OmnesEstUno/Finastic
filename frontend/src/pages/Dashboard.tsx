@@ -25,11 +25,11 @@ import {
   addIncome,
   updateTransaction,
   updateIncome,
-  ConflictError,
   AddTransactionInput,
   AddIncomeInput,
 } from '../api/client';
 import { derivePattern } from '../utils/categories';
+import { runMutation } from '../utils/mutation';
 import { parseISO } from 'date-fns';
 import {
   buildMonthlyExpenseTable,
@@ -177,19 +177,17 @@ export default function Dashboard() {
       const deletedTxns = transactions.filter((t) => txnIds.includes(t.id));
       const deletedInc = income.filter((e) => incIds.includes(e.id));
 
-      try {
-        await bulkDelete(txnIds, incIds);
-        await refetchAll();
-        // Arm the undo toast
-        setPendingUndo({ transactions: deletedTxns, income: deletedInc, label });
-      } catch (err) {
-        if (err instanceof ConflictError) {
+      await runMutation({
+        call: () => bulkDelete(txnIds, incIds),
+        onSuccess: async () => {
           await refetchAll();
-          setConflictMessage('Data was changed by another tab — please retry your action.');
-        } else {
-          dialog.alert(`Delete failed: ${(err as Error).message}`);
-        }
-      }
+          // Arm the undo toast
+          setPendingUndo({ transactions: deletedTxns, income: deletedInc, label });
+        },
+        onConflict: async (msg) => { await refetchAll(); setConflictMessage(msg); },
+        onError: (msg) => dialog.alert(`Delete failed: ${msg}`),
+        conflictMessage: 'Data was changed by another tab — please retry your action.',
+      });
     },
     [transactions, income, refetchAll],
   );
@@ -201,42 +199,39 @@ export default function Dashboard() {
    */
   const handleUndo = useCallback(async () => {
     if (!pendingUndo) return;
-    try {
-      if (pendingUndo.transactions.length > 0) {
-        const payload: AddTransactionInput[] = pendingUndo.transactions.map((t) => ({
-          date: t.date,
-          description: t.description,
-          category: t.category,
-          amount: t.amount,
-          type: t.type,
-          source: t.source,
-          allowDuplicate: true,
-        }));
-        await addTransactions(payload);
-      }
-      for (const e of pendingUndo.income) {
-        const payload: AddIncomeInput = {
-          date: e.date,
-          description: e.description,
-          grossAmount: e.grossAmount,
-          netAmount: e.netAmount,
-          taxes: e.taxes,
-          source: e.source,
-          allowDuplicate: true,
-        };
-        await addIncome(payload);
-      }
-      await refetchAll();
-    } catch (err) {
-      if (err instanceof ConflictError) {
-        await refetchAll();
-        setConflictMessage('Data was changed by another tab — please retry the undo.');
-      } else {
-        dialog.alert(`Undo failed: ${(err as Error).message}`);
-      }
-    } finally {
-      setPendingUndo(null);
-    }
+    await runMutation({
+      call: async () => {
+        if (pendingUndo.transactions.length > 0) {
+          const payload: AddTransactionInput[] = pendingUndo.transactions.map((t) => ({
+            date: t.date,
+            description: t.description,
+            category: t.category,
+            amount: t.amount,
+            type: t.type,
+            source: t.source,
+            allowDuplicate: true,
+          }));
+          await addTransactions(payload);
+        }
+        for (const e of pendingUndo.income) {
+          const payload: AddIncomeInput = {
+            date: e.date,
+            description: e.description,
+            grossAmount: e.grossAmount,
+            netAmount: e.netAmount,
+            taxes: e.taxes,
+            source: e.source,
+            allowDuplicate: true,
+          };
+          await addIncome(payload);
+        }
+      },
+      onSuccess: async () => { await refetchAll(); },
+      onConflict: async (msg) => { await refetchAll(); setConflictMessage(msg); },
+      onError: (msg) => dialog.alert(`Undo failed: ${msg}`),
+      onFinally: () => setPendingUndo(null),
+      conflictMessage: 'Data was changed by another tab — please retry the undo.',
+    });
   }, [pendingUndo, refetchAll]);
 
   /**
@@ -246,62 +241,56 @@ export default function Dashboard() {
   const handleUpdateTransaction = useCallback(
     async (id: string, updates: Parameters<typeof updateTransaction>[1]) => {
       const prev = transactions.find((t) => t.id === id);
-      try {
-        await updateTransaction(id, updates);
-        // If the category changed, offer to apply it to other transactions with a
-        // matching derived description pattern. Skips built-in income rows and
-        // anything already in the new category.
-        if (
-          prev &&
-          updates.category &&
-          updates.category !== prev.category &&
-          prev.type === 'expense'
-        ) {
-          const pattern = derivePattern(prev.description);
-          const patternLower = pattern.toLowerCase();
-          const matches = transactions.filter(
-            (t) =>
-              t.id !== id &&
-              !t.archived &&
-              t.type === 'expense' &&
-              t.category === prev.category &&
-              t.description.toLowerCase().includes(patternLower),
-          );
+      await runMutation({
+        call: () => updateTransaction(id, updates),
+        onSuccess: async () => {
+          // If the category changed, offer to apply it to other transactions with a
+          // matching derived description pattern. Skips built-in income rows and
+          // anything already in the new category.
           if (
-            matches.length > 0 &&
-            await dialog.confirm(
-              `Apply "${updates.category}" to ${matches.length} other transaction${matches.length !== 1 ? 's' : ''} matching "${pattern}"?`,
-            )
+            prev &&
+            updates.category &&
+            updates.category !== prev.category &&
+            prev.type === 'expense'
           ) {
-            await bulkUpdateCategory(pattern, updates.category, prev.category);
+            const pattern = derivePattern(prev.description);
+            const patternLower = pattern.toLowerCase();
+            const matches = transactions.filter(
+              (t) =>
+                t.id !== id &&
+                !t.archived &&
+                t.type === 'expense' &&
+                t.category === prev.category &&
+                t.description.toLowerCase().includes(patternLower),
+            );
+            if (
+              matches.length > 0 &&
+              await dialog.confirm(
+                `Apply "${updates.category}" to ${matches.length} other transaction${matches.length !== 1 ? 's' : ''} matching "${pattern}"?`,
+              )
+            ) {
+              await bulkUpdateCategory(pattern, updates.category, prev.category);
+            }
           }
-        }
-        await refetchAll();
-      } catch (err) {
-        if (err instanceof ConflictError) {
           await refetchAll();
-          setConflictMessage('Data was changed by another tab — please retry your update.');
-        } else {
-          dialog.alert(`Update failed: ${(err as Error).message}`);
-        }
-      }
+        },
+        onConflict: async (msg) => { await refetchAll(); setConflictMessage(msg); },
+        onError: (msg) => dialog.alert(`Update failed: ${msg}`),
+        conflictMessage: 'Data was changed by another tab — please retry your update.',
+      });
     },
     [transactions, refetchAll],
   );
 
   const handleUpdateIncome = useCallback(
     async (id: string, updates: Parameters<typeof updateIncome>[1]) => {
-      try {
-        await updateIncome(id, updates);
-        await refetchAll();
-      } catch (err) {
-        if (err instanceof ConflictError) {
-          await refetchAll();
-          setConflictMessage('Data was changed by another tab — please retry your update.');
-        } else {
-          dialog.alert(`Update failed: ${(err as Error).message}`);
-        }
-      }
+      await runMutation({
+        call: () => updateIncome(id, updates),
+        onSuccess: () => refetchAll(),
+        onConflict: async (msg) => { await refetchAll(); setConflictMessage(msg); },
+        onError: (msg) => dialog.alert(`Update failed: ${msg}`),
+        conflictMessage: 'Data was changed by another tab — please retry your update.',
+      });
     },
     [refetchAll],
   );
