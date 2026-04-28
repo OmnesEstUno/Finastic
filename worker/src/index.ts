@@ -305,6 +305,41 @@ async function deletePaginatedSlice(kv: KVNamespace, prefix: string): Promise<vo
 }
 
 /**
+ * Boilerplate wrapper for endpoints that mutate a versioned resource.
+ *
+ * Caller is responsible for ALL security decisions:
+ *  - Authentication  (JWT verify via requireAuth / authenticate)
+ *  - Authorization   (membership via resolveInstance, ownership, admin)
+ *  - Body schema validation (fields beyond expectedVersion)
+ *
+ * This helper handles ONLY concurrency control:
+ *  - Validates expectedVersion is a number  →  400 if not
+ *  - Reads the current version via readCurrent()
+ *  - Compares versions  →  409 with currentVersion if mismatch
+ *  - Calls operate(data, currentVersion) and returns its Response
+ *
+ * @param readCurrent  Async fn that returns { data, version }.  Pass `data: undefined`
+ *                     when the endpoint only needs the version (e.g. DELETE, in-place PUT).
+ * @param operate      Receives the data and currentVersion; responsible for performing
+ *                     the mutation, saving, and returning the final Response.
+ */
+async function mutateVersioned<T>(
+  cors: Record<string, string>,
+  expectedVersion: unknown,
+  readCurrent: () => Promise<{ data: T; version: number }>,
+  operate: (data: T, currentVersion: number) => Promise<Response>,
+): Promise<Response> {
+  if (typeof expectedVersion !== 'number') {
+    return respond({ error: 'expectedVersion required' }, 400, cors);
+  }
+  const { data, version: currentVersion } = await readCurrent();
+  if (expectedVersion !== currentVersion) {
+    return respond({ error: 'conflict', currentVersion }, 409, cors);
+  }
+  return operate(data, currentVersion);
+}
+
+/**
  * Stable key for identifying duplicate transactions. Two transactions are
  * considered identical when their date, normalized description, and amount
  * (rounded to 2 decimals) all match.
@@ -1015,20 +1050,20 @@ export default {
         }
         const id = txnDeleteMatch[1];
         const delBody = await request.json().catch(() => ({})) as { expectedVersion?: number };
-        if (typeof delBody.expectedVersion !== 'number') {
-          return respond({ error: 'expectedVersion required' }, 400, cors);
-        }
-        const { version: currentTxnDelVersion } = await getTransactionsWithVersion(env.FINANCE_KV, instanceId);
-        if (delBody.expectedVersion !== currentTxnDelVersion) {
-          return respond({ error: 'conflict', currentVersion: currentTxnDelVersion }, 409, cors);
-        }
-        const ok = await deleteFromAnyYear<Transaction>(
-          env.FINANCE_KV,
-          instanceKey(instanceId, 'data:transactions'),
-          id,
+        return mutateVersioned(
+          cors,
+          delBody.expectedVersion,
+          () => getTransactionsWithVersion(env.FINANCE_KV, instanceId).then(({ version }) => ({ data: undefined, version })),
+          async () => {
+            const ok = await deleteFromAnyYear<Transaction>(
+              env.FINANCE_KV,
+              instanceKey(instanceId, 'data:transactions'),
+              id,
+            );
+            if (!ok) return respond({ error: 'Transaction not found.' }, 404, cors);
+            return respond({ ok: true }, 200, cors);
+          },
         );
-        if (!ok) return respond({ error: 'Transaction not found.' }, 404, cors);
-        return respond({ ok: true }, 200, cors);
       }
 
       // ── PUT transaction (update editable fields in place) ──
@@ -1044,13 +1079,6 @@ export default {
           archived?: boolean;
           expectedVersion?: number;
         };
-        if (typeof body.expectedVersion !== 'number') {
-          return respond({ error: 'expectedVersion required' }, 400, cors);
-        }
-        const { version: currentTxnVersion } = await getTransactionsWithVersion(env.FINANCE_KV, instanceId);
-        if (body.expectedVersion !== currentTxnVersion) {
-          return respond({ error: 'conflict', currentVersion: currentTxnVersion }, 409, cors);
-        }
         // Build only the fields explicitly provided so updateInAnyYear merges correctly.
         const patch: Partial<Transaction> = {};
         if (typeof body.date === 'string' && body.date) patch.date = body.date;
@@ -1060,14 +1088,21 @@ export default {
         if (typeof body.notes === 'string') patch.notes = body.notes;
         if (typeof body.archived === 'boolean') patch.archived = body.archived;
 
-        const updated = await updateInAnyYear<Transaction>(
-          env.FINANCE_KV,
-          instanceKey(instanceId, 'data:transactions'),
-          id,
-          patch,
+        return mutateVersioned(
+          cors,
+          body.expectedVersion,
+          () => getTransactionsWithVersion(env.FINANCE_KV, instanceId).then(({ version }) => ({ data: undefined, version })),
+          async () => {
+            const updated = await updateInAnyYear<Transaction>(
+              env.FINANCE_KV,
+              instanceKey(instanceId, 'data:transactions'),
+              id,
+              patch,
+            );
+            if (!updated) return respond({ error: 'Transaction not found.' }, 404, cors);
+            return respond(updated, 200, cors);
+          },
         );
-        if (!updated) return respond({ error: 'Transaction not found.' }, 404, cors);
-        return respond(updated, 200, cors);
       }
 
       // ── GET income ──
@@ -1170,20 +1205,20 @@ export default {
         }
         const id = incDeleteMatch[1];
         const delIncBody = await request.json().catch(() => ({})) as { expectedVersion?: number };
-        if (typeof delIncBody.expectedVersion !== 'number') {
-          return respond({ error: 'expectedVersion required' }, 400, cors);
-        }
-        const { version: currentIncDelVersion } = await getIncomeEntriesWithVersion(env.FINANCE_KV, instanceId);
-        if (delIncBody.expectedVersion !== currentIncDelVersion) {
-          return respond({ error: 'conflict', currentVersion: currentIncDelVersion }, 409, cors);
-        }
-        const ok = await deleteFromAnyYear<IncomeEntry>(
-          env.FINANCE_KV,
-          instanceKey(instanceId, 'data:income'),
-          id,
+        return mutateVersioned(
+          cors,
+          delIncBody.expectedVersion,
+          () => getIncomeEntriesWithVersion(env.FINANCE_KV, instanceId).then(({ version }) => ({ data: undefined, version })),
+          async () => {
+            const ok = await deleteFromAnyYear<IncomeEntry>(
+              env.FINANCE_KV,
+              instanceKey(instanceId, 'data:income'),
+              id,
+            );
+            if (!ok) return respond({ error: 'Income entry not found.' }, 404, cors);
+            return respond({ ok: true }, 200, cors);
+          },
         );
-        if (!ok) return respond({ error: 'Income entry not found.' }, 404, cors);
-        return respond({ ok: true }, 200, cors);
       }
 
       // ── PUT income (update editable fields in place) ──
@@ -1197,13 +1232,6 @@ export default {
           netAmount?: number;
           expectedVersion?: number;
         };
-        if (typeof body.expectedVersion !== 'number') {
-          return respond({ error: 'expectedVersion required' }, 400, cors);
-        }
-        const { version: currentIncVersion } = await getIncomeEntriesWithVersion(env.FINANCE_KV, instanceId);
-        if (body.expectedVersion !== currentIncVersion) {
-          return respond({ error: 'conflict', currentVersion: currentIncVersion }, 409, cors);
-        }
         // Build only the fields explicitly provided so updateInAnyYear merges correctly.
         const patch: Partial<IncomeEntry> = {};
         if (typeof body.date === 'string' && body.date) patch.date = body.date;
@@ -1211,14 +1239,21 @@ export default {
         if (typeof body.grossAmount === 'number' && !isNaN(body.grossAmount)) patch.grossAmount = body.grossAmount;
         if (typeof body.netAmount === 'number' && !isNaN(body.netAmount)) patch.netAmount = body.netAmount;
 
-        const updated = await updateInAnyYear<IncomeEntry>(
-          env.FINANCE_KV,
-          instanceKey(instanceId, 'data:income'),
-          id,
-          patch,
+        return mutateVersioned(
+          cors,
+          body.expectedVersion,
+          () => getIncomeEntriesWithVersion(env.FINANCE_KV, instanceId).then(({ version }) => ({ data: undefined, version })),
+          async () => {
+            const updated = await updateInAnyYear<IncomeEntry>(
+              env.FINANCE_KV,
+              instanceKey(instanceId, 'data:income'),
+              id,
+              patch,
+            );
+            if (!updated) return respond({ error: 'Income entry not found.' }, 404, cors);
+            return respond(updated, 200, cors);
+          },
         );
-        if (!updated) return respond({ error: 'Income entry not found.' }, 404, cors);
-        return respond(updated, 200, cors);
       }
 
       // ── GET user categories (custom categories + description mappings) ──
@@ -1236,9 +1271,6 @@ export default {
           mappings?: Array<{ pattern: string; category: string }>;
           expectedVersion?: number;
         };
-        if (typeof body.expectedVersion !== 'number') {
-          return respond({ error: 'expectedVersion required' }, 400, cors);
-        }
         if (Array.isArray(body.customCategories) && body.customCategories.length > MAX_BATCH_SIZE) {
           return respond({ error: `Batch exceeds maximum of ${MAX_BATCH_SIZE}.` }, 413, cors);
         }
@@ -1255,18 +1287,23 @@ export default {
                 typeof m.category === 'string' && m.category.trim().length > 0,
             )
           : [];
-        // Read previous version to check and increment
-        const prevRaw = await env.FINANCE_KV.get(instanceKey(instanceId, 'data:userCategories'));
-        const prevData = prevRaw ? JSON.parse(prevRaw) : { version: 0 };
-        const prevVersion: number = typeof prevData.version === 'number' ? prevData.version : 0;
-        if (body.expectedVersion !== prevVersion) {
-          return respond({ error: 'conflict', currentVersion: prevVersion }, 409, cors);
-        }
-        await env.FINANCE_KV.put(
-          instanceKey(instanceId, 'data:userCategories'),
-          JSON.stringify({ customCategories, mappings, version: prevVersion + 1 }),
+        return mutateVersioned(
+          cors,
+          body.expectedVersion,
+          async () => {
+            const prevRaw = await env.FINANCE_KV.get(instanceKey(instanceId, 'data:userCategories'));
+            const prevData = prevRaw ? JSON.parse(prevRaw) : { version: 0 };
+            const version: number = typeof prevData.version === 'number' ? prevData.version : 0;
+            return { data: undefined, version };
+          },
+          async (_data, currentVersion) => {
+            await env.FINANCE_KV.put(
+              instanceKey(instanceId, 'data:userCategories'),
+              JSON.stringify({ customCategories, mappings, version: currentVersion + 1 }),
+            );
+            return respond({ ok: true }, 200, cors);
+          },
         );
-        return respond({ ok: true }, 200, cors);
       }
 
       // ── POST bulk delete (transactions + income in one call) ──
@@ -1346,31 +1383,31 @@ export default {
       // ── POST bulk update category for transactions matching a description pattern ──
       if (path === '/api/transactions/bulk-update-category' && method === 'POST') {
         const body = await request.json() as { newCategory?: string; pattern?: string; previousCategory?: string; expectedVersion?: number };
-        if (typeof body.expectedVersion !== 'number') {
-          return respond({ error: 'expectedVersion required' }, 400, cors);
-        }
         const newCategory = (body.newCategory ?? '').trim();
         const pattern = (body.pattern ?? '').trim();
         if (!newCategory || !pattern) return respond({ error: 'newCategory and pattern are required.' }, 400, cors);
-        const { items: txns, version: currentTxnVersion } = await getTransactionsWithVersion(env.FINANCE_KV, instanceId);
-        if (body.expectedVersion !== currentTxnVersion) {
-          return respond({ error: 'conflict', currentVersion: currentTxnVersion }, 409, cors);
-        }
-        const patternLower = pattern.toLowerCase();
-        let updated = 0;
-        const next = txns.map((t) => {
-          if (t.type !== 'expense') return t;
-          if (t.archived) return t;
-          // Only retarget rows that were in the previous category (if specified) so an
-          // accidental broad pattern doesn't overwrite intentionally-different categorizations.
-          if (body.previousCategory && t.category !== body.previousCategory) return t;
-          if (!t.description.toLowerCase().includes(patternLower)) return t;
-          if (t.category === newCategory) return t;
-          updated++;
-          return { ...t, category: newCategory };
-        });
-        if (updated > 0) await saveTransactions(env.FINANCE_KV, instanceId, next);
-        return respond({ updated }, 200, cors);
+        return mutateVersioned<Transaction[]>(
+          cors,
+          body.expectedVersion,
+          () => getTransactionsWithVersion(env.FINANCE_KV, instanceId).then(({ items, version }) => ({ data: items, version })),
+          async (txns) => {
+            const patternLower = pattern.toLowerCase();
+            let updated = 0;
+            const next = txns.map((t) => {
+              if (t.type !== 'expense') return t;
+              if (t.archived) return t;
+              // Only retarget rows that were in the previous category (if specified) so an
+              // accidental broad pattern doesn't overwrite intentionally-different categorizations.
+              if (body.previousCategory && t.category !== body.previousCategory) return t;
+              if (!t.description.toLowerCase().includes(patternLower)) return t;
+              if (t.category === newCategory) return t;
+              updated++;
+              return { ...t, category: newCategory };
+            });
+            if (updated > 0) await saveTransactions(env.FINANCE_KV, instanceId, next);
+            return respond({ updated }, 200, cors);
+          },
+        );
       }
 
       // ── POST rename category (cascades through transactions, mappings, custom list) ──
