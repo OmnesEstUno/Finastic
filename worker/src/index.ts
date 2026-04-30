@@ -16,7 +16,7 @@ import {
   verifyJWT,
   generateTOTPSecret,
   verifyTOTP,
-} from './crypto';
+} from './auth/crypto';
 import { migrateSingleUserToMultiTenant, createDefaultInstance, instanceMetaKey, migrateToYearPartitioned } from './migrations';
 import { createInvite, verifyInvite, markInviteUsed, listInvites, deleteInvite } from './invites';
 import {
