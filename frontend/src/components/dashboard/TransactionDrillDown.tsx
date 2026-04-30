@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Category, UserCategories } from '../../types';
-import { TransactionUpdate, IncomeUpdate } from '../../api/client';
+import type { TransactionUpdate } from '../../api/transactions';
+import type { IncomeUpdate } from '../../api/income';
 import { formatCurrency } from '../../utils/dataProcessing/shared';
 import { getCategoryColor } from '../../utils/categorization/colors';
 import CategorySelect, { NEW_CATEGORY_SENTINEL } from '../CategorySelect';

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getCurrentUsername, subscribeUsername } from '../api/client';
+import { getCurrentUsername, subscribeUsername } from '../api/auth';
 import { storage } from '../utils/storage';
 
 export function useCurrentUser(): string | null {

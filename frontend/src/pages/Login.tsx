@@ -9,7 +9,7 @@ import {
   verify2FA,
   migrateLegacy,
   isAuthenticated,
-} from '../api/client';
+} from '../api/auth';
 import Logo from '../components/Logo';
 import PasswordInput from '../components/PasswordInput';
 import { STORAGE_KEYS, PASSWORD_MIN_LENGTH, USERNAME_REGEX, USERNAME_HINT } from '../utils/constants';

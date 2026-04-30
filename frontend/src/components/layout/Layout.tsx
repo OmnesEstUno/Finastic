@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { logout } from '../../api/client';
+import { logout } from '../../api/auth';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
 import { useDataEntry } from '../../contexts/DataEntryContext';
 import Logo from '../Logo';

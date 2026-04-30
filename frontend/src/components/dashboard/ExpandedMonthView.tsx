@@ -3,7 +3,8 @@ import {
   BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
 import { Transaction, IncomeEntry, Category, UserCategories } from '../../types';
-import { updateTransaction, updateIncome } from '../../api/client';
+import { updateTransaction } from '../../api/transactions';
+import { updateIncome } from '../../api/income';
 import {
   buildDailyBalance,
 } from '../../utils/dataProcessing/dailyBalance';

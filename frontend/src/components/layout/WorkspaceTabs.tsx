@@ -1,5 +1,5 @@
 import { useWorkspaces } from '../../hooks/useWorkspaces';
-import { createInstance } from '../../api/client';
+import { createInstance } from '../../api/instances';
 import { dialog } from '../../utils/dialog';
 
 export default function WorkspaceTabs() {

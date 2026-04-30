@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { useWorkspaces } from '../hooks/useWorkspaces';
-import { getWorkspaceInviteMeta, acceptWorkspaceInvite } from '../api/client';
+import { getWorkspaceInviteMeta, acceptWorkspaceInvite } from '../api/invites';
 import Logo from '../components/Logo';
 import { STORAGE_KEYS, UNIX_MS_MULTIPLIER } from '../utils/constants';
 import { sessionStore } from '../utils/storage';

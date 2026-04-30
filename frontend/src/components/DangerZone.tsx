@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Transaction, IncomeEntry, UserCategories } from '../types';
-import { purgeAllData } from '../api/client';
+import { purgeAllData } from '../api/transactions';
 import { dialog } from '../utils/dialog';
 import { downloadJSON } from '../utils/download';
 

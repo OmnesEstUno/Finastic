@@ -6,11 +6,10 @@ import { parseIncomeCSV } from '../utils/csv/parseIncome';
 import { parsePDFPaystub, extractIncomeFromCSVText, ExtractedPaystub } from '../utils/pdfParser';
 import {
   addTransactions,
-  addIncome,
   getTransactions,
-  getIncome,
-  AddTransactionInput,
-} from '../api/client';
+} from '../api/transactions';
+import type { AddTransactionInput } from '../api/transactions';
+import { addIncome, getIncome } from '../api/income';
 import { runMutation } from '../utils/mutation';
 import { formatCurrency } from '../utils/dataProcessing/shared';
 import {

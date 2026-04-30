@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { UserCategories, CategoryMapping, Category, BUILT_IN_CATEGORIES } from '../types';
-import { getUserCategories, saveUserCategories, ConflictError } from '../api/client';
+import { getUserCategories, saveUserCategories } from '../api/categories';
+import { ConflictError } from '../api/core';
 import { derivePattern } from '../utils/categorization/rules';
 
 /**

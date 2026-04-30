@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
-import { createInvite, listInvites, deleteInvite, InviteSummary } from '../api/client';
+import { createInvite, listInvites, deleteInvite } from '../api/invites';
+import type { InviteSummary } from '../api/invites';
 import { UNIX_MS_MULTIPLIER } from '../utils/constants';
 import { dialog } from '../utils/dialog';
 

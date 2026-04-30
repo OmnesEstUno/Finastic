@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { parseISO, subMonths } from 'date-fns';
 import { Transaction, Category, UserCategories } from '../../types';
-import { updateTransaction } from '../../api/client';
+import { updateTransaction } from '../../api/transactions';
 import { MonthColumn } from '../../utils/dataProcessing/monthlyExpenseTable';
 import { formatCurrency } from '../../utils/dataProcessing/shared';
 import { MONTH_NAMES_SHORT } from '../../utils/dateConstants';

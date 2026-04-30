@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
-import { getTransactions, getIncome, getUserCategories, renameCategory, deleteCategory } from '../api/client';
+import { getTransactions } from '../api/transactions';
+import { getIncome } from '../api/income';
+import { getUserCategories, renameCategory, deleteCategory } from '../api/categories';
 import { runMutation } from '../utils/mutation';
 import { dialog } from '../utils/dialog';
 import { IncomeEntry, Transaction } from '../types';

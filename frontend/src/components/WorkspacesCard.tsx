@@ -6,11 +6,13 @@ import {
   renameInstance,
   deleteInstance,
   removeInstanceMember,
+} from '../api/instances';
+import {
   createWorkspaceInvite,
   listWorkspaceInvites,
   deleteWorkspaceInvite,
-  WorkspaceInviteSummary,
-} from '../api/client';
+} from '../api/invites';
+import type { WorkspaceInviteSummary } from '../api/invites';
 import { runMutation } from '../utils/mutation';
 import { UNIX_MS_MULTIPLIER } from '../utils/constants';
 import { dialog } from '../utils/dialog';

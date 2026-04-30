@@ -1,4 +1,4 @@
-import { ConflictError } from '../api/client';
+import { ConflictError } from '../api/core';
 
 export interface RunMutationOptions<T> {
   /** The API call to execute. Throws on failure. */

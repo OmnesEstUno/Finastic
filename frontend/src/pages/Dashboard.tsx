@@ -11,16 +11,18 @@ import { useSortableListReorder } from '../hooks/useSortableListReorder';
 import { Transaction, IncomeEntry, TimeRange, Category, CustomDateRange } from '../types';
 import {
   getTransactions,
-  getIncome,
-  bulkDelete,
-  bulkUpdateCategory,
   addTransactions,
-  addIncome,
   updateTransaction,
+  bulkUpdateCategory,
+  bulkDelete,
+} from '../api/transactions';
+import type { AddTransactionInput } from '../api/transactions';
+import {
+  getIncome,
+  addIncome,
   updateIncome,
-  AddTransactionInput,
-  AddIncomeInput,
-} from '../api/client';
+} from '../api/income';
+import type { AddIncomeInput } from '../api/income';
 import { derivePattern } from '../utils/categorization/rules';
 import { runMutation } from '../utils/mutation';
 import { parseISO } from 'date-fns';
