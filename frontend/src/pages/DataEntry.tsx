@@ -19,7 +19,7 @@ import {
   findDuplicateMatch,
   DuplicateMatch,
   recordRowInBatch,
-} from '../utils/dedup';
+} from '../utils/deduplication';
 import { useUserCategories } from '../hooks/useUserCategories';
 import { useWorkspaces } from '../hooks/useWorkspaces';
 import CategorySelect, { NEW_CATEGORY_SENTINEL } from '../components/CategorySelect';
