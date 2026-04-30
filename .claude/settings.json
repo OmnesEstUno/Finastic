@@ -21,7 +21,11 @@
       "Bash(git checkout *)",
       "Bash(git add *)",
       "Bash(git commit *)",
-      "Bash(git reset *)"
+      "Bash(git reset *)",
+      "Read(//home/Grey/.claude/plugins/cache/superpowers-marketplace/superpowers/5.0.7/skills/subagent-driven-development/**)",
+      "Read(//var/home/Grey/.claude/plugins/cache/superpowers-marketplace/superpowers/5.0.7/skills/subagent-driven-development/**)",
+      "Bash(mkdir -p /home/Grey/.config/superpowers/worktrees/Lotus)",
+      "Bash(git -C /var/home/Grey/Projects/Lotus worktree add /home/Grey/.config/superpowers/worktrees/Lotus/code-review-cleanup -b chore/code-review-cleanup)"
     ],
     "additionalDirectories": [
       "/tmp",
