@@ -21,7 +21,7 @@ import {
   AddTransactionInput,
   AddIncomeInput,
 } from '../api/client';
-import { derivePattern } from '../utils/categories';
+import { derivePattern } from '../utils/categorization/rules';
 import { runMutation } from '../utils/mutation';
 import { parseISO } from 'date-fns';
 import {
@@ -33,7 +33,7 @@ import {
   getTrackedDuration,
 } from '../utils/dataProcessing';
 import { MONTH_NAMES_SHORT } from '../utils/dateConstants';
-import { getCategoryColor } from '../utils/categories';
+import { getCategoryColor } from '../utils/categorization/colors';
 import CategoryLineChart from '../components/charts/CategoryLineChart';
 import ExpenseCategoryTable from '../components/dashboard/ExpenseCategoryTable';
 import TimeRangeSelector from '../components/dashboard/TimeRangeSelector';

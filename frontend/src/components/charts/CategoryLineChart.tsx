@@ -11,7 +11,7 @@ import {
   TooltipProps,
 } from 'recharts';
 import { Category, CustomDateRange, TimeRange } from '../../types';
-import { getCategoryColor } from '../../utils/categories';
+import { getCategoryColor } from '../../utils/categorization/colors';
 import { buildLineChartData, formatCurrency, getMaxValue, getTrendingCategories } from '../../utils/dataProcessing';
 import { Transaction } from '../../types';
 import DateRangePicker from '../DateRangePicker';

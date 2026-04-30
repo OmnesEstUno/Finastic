@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import { Transaction } from '../../types';
 import { getTransactions, updateTransaction } from '../../api/client';
 import { formatCurrency } from '../../utils/dataProcessing';
-import { getCategoryColor } from '../../utils/categories';
+import { getCategoryColor } from '../../utils/categorization/colors';
 import { useListWithActions } from '../../hooks/useListWithActions';
 
 export default function ArchivedCard() {

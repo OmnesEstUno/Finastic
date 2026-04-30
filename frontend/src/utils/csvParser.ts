@@ -1,6 +1,6 @@
 import Papa from 'papaparse';
 import { CategoryMapping, CSVParseResult, ParsedCSVRow, ParseError } from '../types';
-import { applyUserMappings, categorize } from './categories';
+import { applyUserMappings, categorize } from './categorization/rules';
 
 // ─── Schema Detection ───────────────────────────────────────────────────────
 //

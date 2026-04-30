@@ -4,7 +4,7 @@ import { Transaction, Category, UserCategories } from '../../types';
 import { updateTransaction } from '../../api/client';
 import { MonthColumn, formatCurrency } from '../../utils/dataProcessing';
 import { MONTH_NAMES_SHORT } from '../../utils/dateConstants';
-import { getCategoryColor } from '../../utils/categories';
+import { getCategoryColor } from '../../utils/categorization/colors';
 import { DrillDownRange, DRILL_DOWN_RANGE_LABELS } from './constants';
 import TransactionDrillDown, { DrillDownEvent } from './TransactionDrillDown';
 

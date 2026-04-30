@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { Category, UserCategories } from '../../types';
 import { TransactionUpdate, IncomeUpdate } from '../../api/client';
 import { formatCurrency } from '../../utils/dataProcessing';
-import { getCategoryColor } from '../../utils/categories';
+import { getCategoryColor } from '../../utils/categorization/colors';
 import CategorySelect, { NEW_CATEGORY_SENTINEL } from '../CategorySelect';
 import NotesCell from './NotesCell';
 import RowActionsMenu from './RowActionsMenu';

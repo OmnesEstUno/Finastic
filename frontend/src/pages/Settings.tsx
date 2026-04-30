@@ -4,7 +4,7 @@ import { runMutation } from '../utils/mutation';
 import { dialog } from '../utils/dialog';
 import { IncomeEntry, Transaction } from '../types';
 import { useUserCategories } from '../hooks/useUserCategories';
-import { getCategoryColor } from '../utils/categories';
+import { getCategoryColor } from '../utils/categorization/colors';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { useWorkspaces } from '../hooks/useWorkspaces';
 import { useDashboardLayout, CARD_LABELS, CardId } from '../hooks/useDashboardLayout';
