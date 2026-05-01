@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, FormEvent, DragEvent } from 'react';
-import { SUCCESS_FLASH_DURATION_MS } from '../utils/constants';
+import { SUCCESS_FLASH_DURATION_MS, TRANSACTION_UPLOAD_CHUNK_SIZE } from '../utils/constants';
 import { BUILT_IN_CATEGORIES, Category, IncomeEntry, ParsedCSVRow } from '../types';
 import { parseTransactionCSV } from '../utils/csv/parseTransactions';
 import { parseIncomeCSV } from '../utils/csv/parseIncome';
@@ -38,8 +38,6 @@ interface DataEntryProps {
 // deferred item in docs/superpowers/plans/2026-04-17-verification-pass.md.
 
 type ManualTab = 'expense' | 'income';
-
-const TRANSACTION_UPLOAD_CHUNK_SIZE = 500;
 
 interface PreviewRow {
   idx: number;

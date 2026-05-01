@@ -49,7 +49,7 @@ import { useWorkspaces } from '../hooks/useWorkspaces';
 import { useDashboardLayout, CardId } from '../hooks/useDashboardLayout';
 import Layout from '../components/layout/Layout';
 import { useDataEntry } from '../contexts/DataEntryContext';
-import { YEAR_LOOKBACK } from '../utils/constants';
+import { YEAR_LOOKBACK, TRANSACTION_UPLOAD_CHUNK_SIZE } from '../utils/constants';
 import { dialog } from '../utils/dialog';
 
 // Undo-toast payload: what was just deleted, so we can restore it if the
@@ -182,7 +182,9 @@ export default function Dashboard() {
             source: t.source,
             allowDuplicate: true,
           }));
-          await addTransactions(payload);
+          for (let i = 0; i < payload.length; i += TRANSACTION_UPLOAD_CHUNK_SIZE) {
+            await addTransactions(payload.slice(i, i + TRANSACTION_UPLOAD_CHUNK_SIZE));
+          }
         }
         for (const e of pendingUndo.income) {
           const payload: AddIncomeInput = {

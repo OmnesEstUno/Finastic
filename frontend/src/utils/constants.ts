@@ -35,3 +35,7 @@ export const STORAGE_KEYS = {
 
 // ── Backups ──────────────────────────────────────────────────────────────
 export const BACKUP_FILENAME_PREFIX = 'lotus-backup';
+
+// ── Upload chunking ──────────────────────────────────────────────────────
+// Worker caps batch POSTs at MAX_BATCH_SIZE (1000); 500 leaves headroom.
+export const TRANSACTION_UPLOAD_CHUNK_SIZE = 500;
