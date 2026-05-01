@@ -4,6 +4,7 @@ import { useCurrentUser } from '../../hooks/useCurrentUser';
 import { useDataEntry } from '../../contexts/DataEntryContext';
 import Logo from '../Logo';
 import WorkspaceTabs from './WorkspaceTabs';
+import WorkspacePickerFAB from './WorkspacePickerFAB';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -88,6 +89,7 @@ export default function Layout({ children }: LayoutProps) {
           </svg>
         </button>
       )}
+      {currentUser && (path === '/dashboard' || path === '/settings') && <WorkspacePickerFAB />}
     </>
   );
 }
