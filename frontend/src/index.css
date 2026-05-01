@@ -1,6 +1,10 @@
 /* ─── CSS Reset & Base ───────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+html, body {
+  overflow-x: clip; /* Prevents the page from scrolling horizontally; inner scroll containers (e.g. .table-wrapper) keep their overflow-x: auto. */
+}
+
 :root {
   --bg-base:        #09090b;
   --bg-surface:     #18181b;
@@ -350,11 +354,13 @@ a:hover { color: var(--accent-hover); }
 /* ─── Tabs ───────────────────────────────────────────────────────────────── */
 .tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 2px;
   background: var(--bg-surface);
   border-radius: var(--radius-md);
   padding: var(--space-1);
   width: fit-content;
+  max-width: 100%;
 }
 
 .tab {
@@ -474,7 +480,7 @@ a:hover { color: var(--accent-hover); }
 
 .stat-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: var(--space-3);
 }
 
