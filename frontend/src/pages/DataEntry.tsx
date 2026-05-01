@@ -39,6 +39,8 @@ interface DataEntryProps {
 
 type ManualTab = 'expense' | 'income';
 
+const TRANSACTION_UPLOAD_CHUNK_SIZE = 500;
+
 interface PreviewRow {
   idx: number;
   row: ParsedCSVRow;
@@ -310,9 +312,12 @@ export default function DataEntry({ onRequestClose, onPendingChange }: DataEntry
               allowDuplicate: r.duplicateStatus === 'approved',
             };
           });
-          const result = await addTransactions(txns);
-          addedTxns = result.added;
-          skippedTxns = result.skipped;
+          for (let i = 0; i < txns.length; i += TRANSACTION_UPLOAD_CHUNK_SIZE) {
+            const chunk = txns.slice(i, i + TRANSACTION_UPLOAD_CHUNK_SIZE);
+            const result = await addTransactions(chunk);
+            addedTxns += result.added;
+            skippedTxns += result.skipped;
+          }
         }
 
         let addedIncome = 0;
