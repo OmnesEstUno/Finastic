@@ -57,7 +57,9 @@
       "Bash(git -C /var/home/Grey/.config/superpowers/worktrees/Lotus/code-review-cleanup add frontend/src/utils/csv/ frontend/src/pages/DataEntry.tsx)",
       "Bash(git -C /var/home/Grey/.config/superpowers/worktrees/Lotus/code-review-cleanup mv frontend/src/utils/dedup.ts frontend/src/utils/deduplication.ts)",
       "Bash(git -C /var/home/Grey/.config/superpowers/worktrees/Lotus/code-review-cleanup add frontend/src/utils/deduplication.ts frontend/src/pages/DataEntry.tsx)",
-      "Bash(git -C /var/home/Grey/.config/superpowers/worktrees/Lotus/code-review-cleanup log --oneline -4)"
+      "Bash(git -C /var/home/Grey/.config/superpowers/worktrees/Lotus/code-review-cleanup log --oneline -4)",
+      "Bash(git -C /var/home/Grey/Projects/Lotus add frontend/src/utils/constants.ts frontend/src/pages/DataEntry.tsx frontend/src/pages/Dashboard.tsx)",
+      "Bash(git -C /var/home/Grey/Projects/Lotus commit -m ' *)"
     ],
     "additionalDirectories": [
       "/tmp",
