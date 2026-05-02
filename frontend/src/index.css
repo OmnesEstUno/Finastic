@@ -1079,10 +1079,12 @@ a:hover { color: var(--accent-hover); }
   transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
   -webkit-tap-highlight-color: transparent;
 }
-.fab-enter-data:hover {
-  transform: translateY(-2px);
-  background: var(--accent-hover);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
+@media (hover: hover) {
+  .fab-enter-data:hover {
+    transform: translateY(-2px);
+    background: var(--accent-hover);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
+  }
 }
 .fab-enter-data:active { transform: translateY(0); filter: brightness(1.15); }
 .fab-enter-data-label {
@@ -1336,10 +1338,12 @@ a:hover { color: var(--accent-hover); }
   transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
   -webkit-tap-highlight-color: transparent;
 }
-.fab-workspace-picker:hover {
-  transform: translateY(-2px);
-  background: var(--accent-hover);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
+@media (hover: hover) {
+  .fab-workspace-picker:hover {
+    transform: translateY(-2px);
+    background: var(--accent-hover);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
+  }
 }
 .fab-workspace-picker:active { transform: translateY(0); filter: brightness(1.15); }
 .fab-workspace-picker-label {
