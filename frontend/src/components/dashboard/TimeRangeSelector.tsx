@@ -15,18 +15,16 @@ interface TimeRangeSelectorProps {
 
 export default function TimeRangeSelector({ value, onChange }: TimeRangeSelectorProps) {
   return (
-    <div className="tabs">
-      {(Object.keys(TIME_RANGE_LABELS) as TimeRange[]).map((range) => (
-        <button
-          key={range}
-          type="button"
-          className={`tab ${value === range ? 'active' : ''}`}
-          onClick={() => onChange(range)}
-        >
-          {TIME_RANGE_LABELS[range]}
-        </button>
+    <select
+      className="select"
+      value={value}
+      onChange={(e) => onChange(e.target.value as TimeRange)}
+      aria-label="Time range"
+      style={{ width: 'auto', minWidth: 140 }}
+    >
+      {(Object.keys(TIME_RANGE_LABELS) as TimeRange[]).map((r) => (
+        <option key={r} value={r}>{TIME_RANGE_LABELS[r]}</option>
       ))}
-    </div>
+    </select>
   );
 }
-
