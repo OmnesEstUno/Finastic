@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useWorkspaces } from '../hooks/useWorkspaces';
 import { useCurrentUser } from '../hooks/useCurrentUser';
+import CollapsibleCard from './CollapsibleCard';
 import {
   createInstance,
   renameInstance,
@@ -194,14 +195,14 @@ export default function WorkspacesCard() {
   }
 
   return (
-    <div className="card" style={{ marginBottom: 24 }}>
-      <div className="card-header">
-        <h2>Workspaces</h2>
+    <CollapsibleCard
+      title="Workspaces"
+      headerExtra={
         <button onClick={handleCreate} disabled={busy} className="btn btn-primary btn-sm">
           Create new workspace
         </button>
-      </div>
-
+      }
+    >
       {error && (
         <p style={{ color: 'var(--danger)', marginBottom: 12, fontSize: '0.875rem' }}>{error}</p>
       )}
@@ -312,6 +313,6 @@ export default function WorkspacesCard() {
           })}
         </div>
       )}
-    </div>
+    </CollapsibleCard>
   );
 }

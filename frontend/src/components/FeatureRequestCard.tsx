@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { submitFeatureRequest } from '../api/featureRequests';
+import CollapsibleCard from './CollapsibleCard';
 
 export default function FeatureRequestCard() {
   const [text, setText] = useState('');
@@ -23,10 +24,7 @@ export default function FeatureRequestCard() {
   }
 
   return (
-    <div className="card">
-      <div className="card-header">
-        <h2>Feature Request</h2>
-      </div>
+    <CollapsibleCard title="Feature Request">
       <p className="text-sm text-muted" style={{ marginBottom: 12 }}>
         Got an idea? Send it here — we read every submission.
       </p>
@@ -54,6 +52,6 @@ export default function FeatureRequestCard() {
           </span>
         )}
       </div>
-    </div>
+    </CollapsibleCard>
   );
 }

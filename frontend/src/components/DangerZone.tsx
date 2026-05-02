@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Transaction, IncomeEntry, UserCategories } from '../types';
+import CollapsibleCard from './CollapsibleCard';
 import { purgeAllData } from '../api/transactions';
 import { dialog } from '../utils/dialog';
 import { downloadJSON } from '../utils/download';
@@ -65,17 +66,14 @@ export default function DangerZone({ transactions, income, userCategories, onPur
   const typedMatches = typed.trim() === 'DELETE';
 
   return (
-    <div
-      className="card"
-      style={{
+    <CollapsibleCard
+      title="Danger Zone"
+      titleStyle={{ color: 'var(--danger)' }}
+      cardStyle={{
         borderColor: 'rgba(248,113,113,0.35)',
         background: 'rgba(248,113,113,0.03)',
       }}
     >
-      <div className="card-header">
-        <h2 style={{ color: 'var(--danger)' }}>Danger Zone</h2>
-      </div>
-
       {success && (
         <div className="alert alert-success" style={{ marginBottom: 16 }}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -163,6 +161,6 @@ export default function DangerZone({ transactions, income, userCategories, onPur
           )}
         </div>
       )}
-    </div>
+    </CollapsibleCard>
   );
 }

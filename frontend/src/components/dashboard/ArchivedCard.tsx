@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { Transaction } from '../../types';
+import CollapsibleCard from '../CollapsibleCard';
 import { getTransactions, updateTransaction } from '../../api/transactions';
 import { formatCurrency } from '../../utils/dataProcessing/shared';
 import { getCategoryColor } from '../../utils/categorization/colors';
@@ -19,9 +20,8 @@ export default function ArchivedCard() {
   }
 
   return (
-    <div className="card" style={{ marginBottom: 24 }}>
-      <h2>Archived Transactions</h2>
-      <p className="text-muted text-sm" style={{ marginTop: -4, marginBottom: 12 }}>
+    <CollapsibleCard title="Archived Transactions">
+      <p className="text-muted text-sm" style={{ marginBottom: 12 }}>
         Hidden from charts and aggregates but still counted in your total.
       </p>
       {error && <p style={{ color: 'var(--error)' }}>{error}</p>}
@@ -68,6 +68,6 @@ export default function ArchivedCard() {
           </table>
         </div>
       )}
-    </div>
+    </CollapsibleCard>
   );
 }

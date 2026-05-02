@@ -22,6 +22,7 @@ import {
 } from '@dnd-kit/sortable';
 import { useSortableListReorder } from '../hooks/useSortableListReorder';
 import { CSS } from '@dnd-kit/utilities';
+import CollapsibleCard from '../components/CollapsibleCard';
 import InviteTokensCard from '../components/InviteTokensCard';
 import ToggleSwitch from '../components/ToggleSwitch';
 import WorkspacesCard from '../components/WorkspacesCard';
@@ -264,15 +265,11 @@ export default function Settings() {
       {/* ─── Workspaces ───────────────────────────────────── */}
       <WorkspacesCard />
 
-      {/* ─── Accessibility ────────────────────────────────── */}
-      <AccessibilityCard />
-
       {/* ─── Dashboard Card Visibility ────────────────────── */}
-      <div className="card">
-        <div className="card-header">
-          <h2>Dashboard Card Visibility</h2>
-          <span className="text-xs text-muted">{cardOrder.length - hidden.size} visible</span>
-        </div>
+      <CollapsibleCard
+        title="Dashboard Card Visibility"
+        headerExtra={<span className="text-xs text-muted">{cardOrder.length - hidden.size} visible</span>}
+      >
         <p className="text-xs text-muted" style={{ marginBottom: 12 }}>
           Drag rows to change the order on your dashboard. Toggle off to hide a card.
         </p>
@@ -295,17 +292,13 @@ export default function Settings() {
             </div>
           </SortableContext>
         </DndContext>
-      </div>
+      </CollapsibleCard>
 
       {/* ─── Custom Categories ────────────────────────────── */}
-      <div className="card">
-        <div className="card-header">
-          <h2>Custom Categories</h2>
-          <span className="text-xs text-muted">
-            {userCategories.customCategories.length} custom
-          </span>
-        </div>
-
+      <CollapsibleCard
+        title="Custom Categories"
+        headerExtra={<span className="text-xs text-muted">{userCategories.customCategories.length} custom</span>}
+      >
         {userCategories.customCategories.length === 0 ? (
           <p className="text-muted text-sm">
             You haven't created any custom categories yet. Create one from the Data Entry page
@@ -370,17 +363,13 @@ export default function Settings() {
             </table>
           </div>
         )}
-      </div>
+      </CollapsibleCard>
 
       {/* ─── Description Mappings ────────────────────────── */}
-      <div className="card">
-        <div className="card-header">
-          <h2>Description Mappings</h2>
-          <span className="text-xs text-muted">
-            {userCategories.mappings.length} rule{userCategories.mappings.length !== 1 ? 's' : ''}
-          </span>
-        </div>
-
+      <CollapsibleCard
+        title="Description Mappings"
+        headerExtra={<span className="text-xs text-muted">{userCategories.mappings.length} rule{userCategories.mappings.length !== 1 ? 's' : ''}</span>}
+      >
         <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginBottom: 16 }}>
           When a transaction description contains one of these patterns, it's automatically
           assigned the matching category on import. Patterns are created when you assign a custom
@@ -447,7 +436,7 @@ export default function Settings() {
             </table>
           </div>
         )}
-      </div>
+      </CollapsibleCard>
 
       {/* ─── Feature Request ──────────────────────────────── */}
       <FeatureRequestCard />
@@ -455,6 +444,9 @@ export default function Settings() {
 
       {/* ─── Archived Transactions ────────────────────────── */}
       <ArchivedCard />
+
+      {/* ─── Accessibility ────────────────────────────────── */}
+      <AccessibilityCard />
 
       {/* ─── Danger Zone ──────────────────────────────────── */}
       <DangerZone

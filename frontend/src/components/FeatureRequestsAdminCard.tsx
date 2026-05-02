@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { listFeatureRequests } from '../api/featureRequests';
 import type { FeatureRequest } from '../api/featureRequests';
+import CollapsibleCard from './CollapsibleCard';
 
 export default function FeatureRequestsAdminCard() {
   const [items, setItems] = useState<FeatureRequest[]>([]);
@@ -15,11 +16,10 @@ export default function FeatureRequestsAdminCard() {
   }, []);
 
   return (
-    <div className="card">
-      <div className="card-header">
-        <h2>Feature Requests (admin)</h2>
-        {!loading && !err && <span className="text-xs text-muted">{items.length} total</span>}
-      </div>
+    <CollapsibleCard
+      title="Feature Requests (admin)"
+      headerExtra={!loading && !err ? <span className="text-xs text-muted">{items.length} total</span> : undefined}
+    >
       {loading && <p className="text-sm text-muted">Loading…</p>}
       {err && <p className="text-sm text-danger">{err}</p>}
       {!loading && !err && items.length === 0 && (
@@ -37,6 +37,6 @@ export default function FeatureRequestsAdminCard() {
           ))}
         </div>
       )}
-    </div>
+    </CollapsibleCard>
   );
 }

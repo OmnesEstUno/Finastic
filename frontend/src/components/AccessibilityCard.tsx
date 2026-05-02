@@ -5,6 +5,7 @@ import {
   type ReduceMotion,
   type TextScale,
 } from '../hooks/useAccessibilitySettings';
+import CollapsibleCard from './CollapsibleCard';
 
 interface PaletteOption {
   value: Palette;
@@ -48,11 +49,7 @@ export default function AccessibilityCard() {
   } = useAccessibilitySettings();
 
   return (
-    <div className="card">
-      <div className="card-header">
-        <h2>Accessibility</h2>
-      </div>
-
+    <CollapsibleCard title="Accessibility">
       {/* ─── Color palette ─────────────────────────────────────── */}
       <div className="a11y-section">
         <h3 className="a11y-section-title">Color palette</h3>
@@ -175,6 +172,6 @@ export default function AccessibilityCard() {
           ))}
         </div>
       </div>
-    </div>
+    </CollapsibleCard>
   );
 }

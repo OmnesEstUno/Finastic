@@ -1644,3 +1644,47 @@ a:hover { color: var(--accent-hover); }
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
+
+/* ─── Collapsible settings card ──────────────────────────────────────────── */
+.collapsible-card-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.collapsible-card-header:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: var(--radius-sm);
+}
+.collapsible-card-title {
+  flex: 1;
+  margin: 0;
+  /* Inherit existing h2 styling */
+}
+.collapsible-card-extra {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+}
+.collapsible-card-chevron {
+  flex-shrink: 0;
+  font-size: 24px;
+  color: var(--text-muted);
+}
+.collapsible-card-body {
+  margin-top: var(--space-4);
+}
+.collapsible-card-body[hidden] {
+  display: none;
+}

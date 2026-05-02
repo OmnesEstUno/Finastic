@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
+import CollapsibleCard from './CollapsibleCard';
 import { createInvite, listInvites, deleteInvite } from '../api/invites';
 import type { InviteSummary } from '../api/invites';
 import { UNIX_MS_MULTIPLIER } from '../utils/constants';
@@ -81,14 +82,17 @@ export default function InviteTokensCard() {
   }
 
   return (
-    <div className="card" style={{ marginBottom: 24 }}>
-      <h2>Invite Tokens</h2>
-      <button onClick={handleGenerate} disabled={loading} className="btn btn-primary">
-        {loading ? 'Generating…' : 'Generate invite'}
-      </button>
+    <CollapsibleCard
+      title="Invite Tokens"
+      headerExtra={
+        <button onClick={handleGenerate} disabled={loading} className="btn btn-primary btn-sm">
+          {loading ? 'Generating…' : 'Generate invite'}
+        </button>
+      }
+    >
       {error && <p style={{ color: 'var(--error)' }}>{error}</p>}
 
-      <h3 style={{ marginTop: 24 }}>Active invites</h3>
+      <h3 style={{ marginTop: 0, marginBottom: 8 }}>Active invites</h3>
       {invites.length === 0 && <p style={{ color: 'var(--text-muted)' }}>No active invites.</p>}
       <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
         {invites.map((inv) => {
@@ -173,6 +177,6 @@ export default function InviteTokensCard() {
           );
         })}
       </ul>
-    </div>
+    </CollapsibleCard>
   );
 }
