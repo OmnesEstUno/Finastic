@@ -24,6 +24,7 @@ import { CSS } from '@dnd-kit/utilities';
 import InviteTokensCard from '../components/InviteTokensCard';
 import ToggleSwitch from '../components/ToggleSwitch';
 import WorkspacesCard from '../components/WorkspacesCard';
+import AccessibilityCard from '../components/AccessibilityCard';
 import ArchivedCard from '../components/dashboard/ArchivedCard';
 import DangerZone from '../components/DangerZone';
 import FeatureRequestCard from '../components/FeatureRequestCard';
@@ -260,6 +261,9 @@ export default function Settings() {
 
       {/* ─── Workspaces ───────────────────────────────────── */}
       <WorkspacesCard />
+
+      {/* ─── Accessibility ────────────────────────────────── */}
+      <AccessibilityCard />
 
       {/* ─── Dashboard Card Visibility ────────────────────── */}
       <div className="card">
