@@ -67,18 +67,18 @@ export default function DashboardCard({
           </div>
           <div className="dashboard-card-actions">
             {headerActions}
-            <button
-              type="button"
-              aria-label={minimized ? 'Expand card' : 'Minimize card'}
-              aria-expanded={!minimized}
-              onClick={onToggleMinimize}
-              className="dashboard-card-minimize-btn"
-            >
-              <span className="material-symbols-outlined dashboard-card-minimize-icon">
-                {minimized ? 'expand_more' : 'expand_less'}
-              </span>
-            </button>
           </div>
+          <button
+            type="button"
+            aria-label={minimized ? 'Expand card' : 'Minimize card'}
+            aria-expanded={!minimized}
+            onClick={onToggleMinimize}
+            className="dashboard-card-minimize-btn"
+          >
+            <span className="material-symbols-outlined dashboard-card-minimize-icon">
+              {minimized ? 'expand_more' : 'expand_less'}
+            </span>
+          </button>
         </div>
         {!minimized && children}
       </div>

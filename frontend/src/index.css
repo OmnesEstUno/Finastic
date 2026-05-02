@@ -229,6 +229,7 @@ a:hover { color: var(--accent-hover); }
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: nowrap;
   margin-bottom: var(--space-5);
 }
 
@@ -964,6 +965,7 @@ a:hover { color: var(--accent-hover); }
   align-items: center;
   gap: 10px;
   min-width: 0;
+  flex-shrink: 0;
 }
 
 .dashboard-card-drag-icon {
@@ -980,6 +982,9 @@ a:hover { color: var(--accent-hover); }
   align-items: center;
   gap: var(--space-3);
   flex-wrap: wrap;
+  flex: 1 1 auto;
+  min-width: 0;
+  justify-content: flex-end;
 }
 
 .dashboard-card-minimize-btn {
@@ -994,6 +999,7 @@ a:hover { color: var(--accent-hover); }
   color: var(--text-muted);
   cursor: pointer;
   border-radius: 6px;
+  flex-shrink: 0;
 }
 
 .dashboard-card-minimize-icon {
