@@ -1175,7 +1175,6 @@ a:hover { color: var(--accent-hover); }
   position: relative;
   width: 40px;
   height: 22px;
-  min-height: var(--touch-target-min);
   border: none;
   border-radius: 999px;
   background: var(--bg-elevated);
@@ -1183,6 +1182,12 @@ a:hover { color: var(--accent-hover); }
   padding: 0;
   flex-shrink: 0;
   transition: background 0.18s ease;
+}
+/* Invisible overlay extends the tap target to 44px without affecting layout. */
+.toggle-switch::before {
+  content: '';
+  position: absolute;
+  inset: -11px -2px;
 }
 .toggle-switch:focus-visible {
   outline: 2px solid var(--accent);
