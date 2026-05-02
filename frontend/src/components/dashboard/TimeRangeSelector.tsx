@@ -20,7 +20,7 @@ export default function TimeRangeSelector({ value, onChange }: TimeRangeSelector
       value={value}
       onChange={(e) => onChange(e.target.value as TimeRange)}
       aria-label="Time range"
-      style={{ width: 'auto', minWidth: 140 }}
+      style={{ width: 'auto', flexShrink: 0 }}
     >
       {(Object.keys(TIME_RANGE_LABELS) as TimeRange[]).map((r) => (
         <option key={r} value={r}>{TIME_RANGE_LABELS[r]}</option>
