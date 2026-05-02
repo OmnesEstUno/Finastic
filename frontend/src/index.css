@@ -299,7 +299,7 @@ a:hover { color: var(--accent-hover); }
   color: var(--text-primary);
   outline: none;
   transition: border-color 0.15s;
-  width: 100%;
+  width: auto;
 }
 
 .input:focus, .select:focus, textarea:focus {
