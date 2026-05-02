@@ -9,29 +9,31 @@ import {
 interface PaletteOption {
   value: Palette;
   label: string;
-  swatch: { bg: string; card: string; accent: string; text: string };
+  swatch: { bg: string; card: string; accent: string; text: string; badgeFg: string };
 }
 
+// Hex values mirror the CSS custom properties in index.css.
+// Keep in sync if palette tokens change.
 const PALETTES: PaletteOption[] = [
   {
     value: 'dark',
     label: 'Dark',
-    swatch: { bg: '#09090b', card: '#27272a', accent: '#818cf8', text: '#fafafa' },
+    swatch: { bg: '#09090b', card: '#27272a', accent: '#818cf8', text: '#fafafa', badgeFg: '#0f0f1a' },
   },
   {
     value: 'light',
     label: 'Light',
-    swatch: { bg: '#faf9ff', card: '#ffffff', accent: '#4f46e5', text: '#1e1b4b' },
+    swatch: { bg: '#faf9ff', card: '#ffffff', accent: '#4f46e5', text: '#1e1b4b', badgeFg: '#ffffff' },
   },
   {
     value: 'hi-vis-dark',
     label: 'Hi-Vis Dark',
-    swatch: { bg: '#000000', card: '#1a1a1a', accent: '#ffeb3b', text: '#ffffff' },
+    swatch: { bg: '#000000', card: '#1a1a1a', accent: '#ffeb3b', text: '#ffffff', badgeFg: '#0f0f1a' },
   },
   {
     value: 'hi-vis-light',
     label: 'Hi-Vis Light',
-    swatch: { bg: '#ffffff', card: '#f5f5f5', accent: '#4527a0', text: '#000000' },
+    swatch: { bg: '#ffffff', card: '#f5f5f5', accent: '#4527a0', text: '#000000', badgeFg: '#ffffff' },
   },
 ];
 
@@ -83,16 +85,19 @@ export default function AccessibilityCard() {
                     fontWeight: 700,
                   }}
                 >
-                  <span style={{ background: p.swatch.accent, padding: '0 8px', borderRadius: 3 }}>
+                  <span style={{ background: p.swatch.accent, padding: '0 8px', borderRadius: 3, color: p.swatch.badgeFg }}>
                     Aa
                   </span>
                 </span>
               </div>
               <span className="palette-swatch-name">{p.label}</span>
+              {settings.palette === p.value && (
+                <span aria-hidden="true" className="palette-swatch-check">✓</span>
+              )}
             </button>
           ))}
         </div>
-        <label className="a11y-radio-label" style={{ marginTop: 'var(--space-2)' }}>
+        <label className="a11y-radio-label">
           <input
             type="checkbox"
             checked={settings.colorBlindCharts}
@@ -124,7 +129,7 @@ export default function AccessibilityCard() {
       {/* ─── Motion ───────────────────────────────────────────── */}
       <div className="a11y-section">
         <h3 className="a11y-section-title">Motion</h3>
-        <div className="a11y-radio-group" role="radiogroup" aria-label="Reduce motion">
+        <div className="a11y-radio-group" role="radiogroup" aria-label="Motion">
           {(
             [
               { value: 'auto', label: 'Auto (follow system)' },
