@@ -77,11 +77,15 @@
       "Bash(git -C /var/home/Grey/Projects/Lotus log --oneline main..HEAD)",
       "Bash(git -C /var/home/Grey/Projects/Lotus add docs/handoff-mobile-shell-2026-05-01.md)",
       "Read(//home/Grey/Projects/Lotus/docs/**)",
-      "Read(//var/home/Grey/Projects/Lotus/docs/**)"
+      "Read(//var/home/Grey/Projects/Lotus/docs/**)",
+      "Read(//home/Grey/Projects/Lotus/frontend/src/**)",
+      "Read(//var/home/Grey/Projects/Lotus/frontend/src/**)"
     ],
     "additionalDirectories": [
       "/tmp",
-      "/var/home/Grey/Projects/Lotus/docs/superpowers"
+      "/var/home/Grey/Projects/Lotus/docs/superpowers",
+      "/home/Grey/Projects/Lotus/frontend/src",
+      "/var/home/Grey/Projects/Lotus/frontend/src"
     ]
   }
 }

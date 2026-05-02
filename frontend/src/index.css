@@ -1076,14 +1076,15 @@ a:hover { color: var(--accent-hover); }
   text-align: center;
   line-height: 1.1;
   z-index: var(--z-sticky);
-  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
+  -webkit-tap-highlight-color: transparent;
 }
 .fab-enter-data:hover {
   transform: translateY(-2px);
   background: var(--accent-hover);
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
 }
-.fab-enter-data:active { transform: translateY(0); }
+.fab-enter-data:active { transform: translateY(0); filter: brightness(1.15); }
 .fab-enter-data-label {
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
@@ -1332,14 +1333,15 @@ a:hover { color: var(--accent-hover); }
   font-size: 0.75rem;
   text-align: center;
   line-height: 1.1;
-  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
+  -webkit-tap-highlight-color: transparent;
 }
 .fab-workspace-picker:hover {
   transform: translateY(-2px);
   background: var(--accent-hover);
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
 }
-.fab-workspace-picker:active { transform: translateY(0); }
+.fab-workspace-picker:active { transform: translateY(0); filter: brightness(1.15); }
 .fab-workspace-picker-label {
   font-size: 0.75rem;
   font-weight: 600;
